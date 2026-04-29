@@ -8,6 +8,7 @@ from common.responses import register_common_handlers
 from fastapi import FastAPI
 
 from auth_service.config import settings
+from auth_service.api.v1.auth import router as auth_router
 
 logger = get_logger(__name__)
 
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
     configure_logging(settings.LOG_LEVEL)
     app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
     register_common_handlers(app)
+    app.include_router(auth_router, prefix="/api/v1")
 
     @app.get("/")
     def read_root() -> dict[str, str]:
