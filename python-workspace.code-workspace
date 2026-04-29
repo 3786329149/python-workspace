@@ -1,0 +1,22 @@
+{
+	 "folders": [
+        {
+            "name":"common",
+            "path": "./common"
+        },
+		  {
+            "name":"gateway",
+            "path": "./gateway"
+        },
+         {
+            "name":"user_service",
+            "path": "./services/user_service"
+        },
+		 {
+            "name":"auth_service",
+            "path": "./services/auth_service"
+        },
+		
+    ],
+	"settings": {}
+}
