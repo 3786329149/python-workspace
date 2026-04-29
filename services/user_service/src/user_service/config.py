@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import ClassVar
 
 from common.config import (
     BaseServiceConfig,
@@ -16,6 +17,8 @@ class UserServiceConfig(
     RedisConfigMixin,
     BaseServiceConfig,
 ):
+    DEFAULT_SERVICE_PORT: ClassVar[int] = 5600
+
     PROJECT_NAME: str = "user-service"
 
     model_config = SettingsConfigDict(

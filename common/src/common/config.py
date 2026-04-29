@@ -49,13 +49,30 @@ def find_service_env_file(service: str | Path, filename: str = ".env") -> Path:
 
 
 class BaseServiceConfig(BaseSettings):
+    DEFAULT_SERVICE_HOST: ClassVar[str] = "127.0.0.1"
+    DEFAULT_SERVICE_PORT: ClassVar[int] = 8000
+    DEFAULT_SERVICE_RELOAD: ClassVar[bool] = False
+
     ENV: str = "dev"
     LOG_LEVEL: str = "INFO"
+    SERVICE_HOST: str = ""
+    SERVICE_PORT: int = 0
+    SERVICE_RELOAD: bool | None = None
 
     model_config = SettingsConfigDict(
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def fill_service_defaults(self):
+        if not self.SERVICE_HOST:
+            self.SERVICE_HOST = self.DEFAULT_SERVICE_HOST
+        if not self.SERVICE_PORT:
+            self.SERVICE_PORT = self.DEFAULT_SERVICE_PORT
+        if self.SERVICE_RELOAD is None:
+            self.SERVICE_RELOAD = self.DEFAULT_SERVICE_RELOAD
+        return self
 
 
 class DatabaseConfigMixin:

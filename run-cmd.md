@@ -5,8 +5,8 @@ uv lock --check
 ```
 
 ```bash
-uv run --package user-service uvicorn user_service.main:app --reload
-uv run --package auth-service uvicorn auth_service.main:app --reload
+uv run --package user-service python -m user_service.server
+uv run --package auth-service python -m auth_service.server
 ```
 
 ```bash

@@ -19,8 +19,8 @@ when local DB or Redis overrides are needed.
 
 ```bash
 uv lock --check
-uv run --package user-service uvicorn user_service.main:app --reload
-uv run --package auth-service uvicorn auth_service.main:app --reload
+uv run --package user-service python -m user_service.server
+uv run --package auth-service python -m auth_service.server
 uv run --package user-service pytest
 uv run --package user-service alembic -c services/user_service/alembic.ini upgrade head
 uv run --package auth-service alembic -c services/auth_service/alembic.ini upgrade head

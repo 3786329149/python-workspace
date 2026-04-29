@@ -12,8 +12,11 @@ cp services/auth_service/.env.example services/auth_service/.env
 FastAPI service entrypoint:
 
 ```bash
-uv run --package auth-service uvicorn auth_service.main:app --reload
+uv run --package auth-service python -m auth_service.server
 ```
+
+Default local port is `5601`; override it with `SERVICE_PORT` in
+`services/auth_service/.env`.
 
 Run migrations:
 

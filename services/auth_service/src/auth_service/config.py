@@ -19,6 +19,7 @@ class AuthServiceConfig(
 ):
     DEFAULT_DB_NAME: ClassVar[str] = "auth_db"
     DEFAULT_REDIS_URL: ClassVar[str] = "redis://localhost:6379/1"
+    DEFAULT_SERVICE_PORT: ClassVar[int] = 5601
 
     PROJECT_NAME: str = "auth-service"
 

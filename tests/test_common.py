@@ -25,11 +25,15 @@ def test_common_modules_import() -> None:
 
 def test_config_reads_environment_override(monkeypatch) -> None:
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("SERVICE_PORT", "5800")
 
     config = BaseServiceConfig(_env_file=None)
 
     assert config.LOG_LEVEL == "DEBUG"
     assert config.ENV == "dev"
+    assert config.SERVICE_HOST == "127.0.0.1"
+    assert config.SERVICE_PORT == 5800
+    assert config.SERVICE_RELOAD is False
 
 
 def test_find_service_env_file_points_to_service_env() -> None:

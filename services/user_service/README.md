@@ -9,8 +9,11 @@ cp services/user_service/.env.example services/user_service/.env
 FastAPI service entrypoint:
 
 ```bash
-uv run --package user-service uvicorn user_service.main:app --reload
+uv run --package user-service python -m user_service.server
 ```
+
+Default local port is `5600`; override it with `SERVICE_PORT` in
+`services/user_service/.env`.
 
 Run migrations:
 
