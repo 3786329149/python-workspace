@@ -63,6 +63,9 @@ def register_common_handlers(app: FastAPI) -> None:
         exc: StarletteHTTPException,
     ) -> JSONResponse:
         request_id = _request_id_from_request(request)
+        headers = {REQUEST_ID_HEADER: request_id}
+        if exc.headers:
+            headers.update(exc.headers)
         return JSONResponse(
             status_code=exc.status_code,
             content=error_response(
@@ -70,7 +73,7 @@ def register_common_handlers(app: FastAPI) -> None:
                 message=str(exc.detail),
                 request_id=request_id,
             ),
-            headers={REQUEST_ID_HEADER: request_id},
+            headers=headers,
         )
 
     @app.exception_handler(RequestValidationError)

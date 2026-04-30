@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx
 from common.database import create_async_engine_factory, create_session_factory
 from common.logger import configure_logging, get_logger
 from common.redis import create_redis_client
@@ -17,15 +18,18 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     engine = create_async_engine_factory(settings)
     redis_client = create_redis_client(settings)
+    http_client = httpx.AsyncClient(timeout=httpx.Timeout(10.0))
 
     app.state.db_engine = engine
     app.state.db_session_factory = create_session_factory(engine)
     app.state.redis = redis_client
+    app.state.http_client = http_client
 
     try:
         logger.info("auth service started")
         yield
     finally:
+        await http_client.aclose()
         await redis_client.aclose()
         await engine.dispose()
         logger.info("auth service stopped")

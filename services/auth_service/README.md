@@ -1,7 +1,7 @@
 # auth-service
 
-独立认证服务。只保存认证身份和凭证，不通过 ORM 外键或 relationship 直接绑定
-`user_service` 的 `users` 表。
+独立认证服务。负责注册、密码绑定等认证入口；只保存认证身份和凭证，不通过
+ORM 外键或 relationship 直接绑定 `user_service` 的 `users` 表。
 
 Local configuration:
 
@@ -15,7 +15,7 @@ FastAPI service entrypoint:
 uv run --package auth-service python -m auth_service.server
 ```
 
-Default local port is `5601`; override it with `SERVICE_PORT` in
+Default local port is `5602`; override it with `SERVICE_PORT` in
 `services/auth_service/.env`.
 
 Run migrations:
@@ -32,4 +32,11 @@ user_auths
 - identity_type: password / wechat / mobile 等
 - identifier: 账号、手机号或第三方 openid
 - credential: 密码哈希或第三方凭证
+```
+
+API v1:
+
+```text
+POST /api/v1/auth/register
+POST /api/v1/auth/bind-password  # internal token required
 ```

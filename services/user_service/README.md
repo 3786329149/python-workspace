@@ -12,7 +12,7 @@ FastAPI service entrypoint:
 uv run --package user-service python -m user_service.server
 ```
 
-Default local port is `5600`; override it with `SERVICE_PORT` in
+Default local port is `5601`; override it with `SERVICE_PORT` in
 `services/user_service/.env`.
 
 Run migrations:

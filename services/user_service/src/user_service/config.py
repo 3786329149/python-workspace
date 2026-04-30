@@ -17,7 +17,7 @@ class UserServiceConfig(
     RedisConfigMixin,
     BaseServiceConfig,
 ):
-    DEFAULT_SERVICE_PORT: ClassVar[int] = 5600
+    DEFAULT_SERVICE_PORT: ClassVar[int] = 5601
 
     PROJECT_NAME: str = "user-service"
 

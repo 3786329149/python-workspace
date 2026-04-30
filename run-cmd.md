@@ -7,6 +7,7 @@ uv lock --check
 ```bash
 uv run --package user-service python -m user_service.server
 uv run --package auth-service python -m auth_service.server
+uv run --package gateway python -m gateway.server
 ```
 
 ```bash
