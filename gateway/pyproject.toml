@@ -1,0 +1,27 @@
+[project]
+name = "gateway"
+version = "0.1.0"
+description = "API Gateway and Orchestrator"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "common",
+    "fastapi[standard]>=0.136.1",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.8.1",
+]
+
+[tool.uv.sources]
+common = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
