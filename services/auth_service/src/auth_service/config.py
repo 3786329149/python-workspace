@@ -24,6 +24,10 @@ class AuthServiceConfig(
     PROJECT_NAME: str = "auth-service"
     USER_SERVICE_URL: str = "http://127.0.0.1:5601"
     INTERNAL_API_TOKEN: str = ""
+    JWT_SECRET_KEY: str = "dev-secret-change-me-with-at-least-32-bytes"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     model_config = SettingsConfigDict(
         env_file=SERVICE_ENV_FILE,

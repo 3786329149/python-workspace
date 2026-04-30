@@ -10,7 +10,14 @@ def get_auth_service(request: Request) -> AuthApplicationService:
         request.app.state.http_client,
         settings.USER_SERVICE_URL,
     )
-    return AuthApplicationService(uow, user_profiles)
+    return AuthApplicationService(
+        uow,
+        user_profiles,
+        jwt_secret_key=settings.JWT_SECRET_KEY,
+        jwt_algorithm=settings.JWT_ALGORITHM,
+        access_token_expire_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+        refresh_token_expire_days=settings.REFRESH_TOKEN_EXPIRE_DAYS,
+    )
 
 
 def require_internal_token(

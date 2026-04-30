@@ -8,6 +8,7 @@ Single-repository, multi-module FastAPI workspace managed by uv.
 - `services/user_service`: FastAPI user profile, organization, role, and menu service.
 - `services/auth_service`: FastAPI authentication identity service with its own database; owns registration and credential flows.
 - `gateway`: external API entrypoint for service routing, request-id propagation, rate limiting, circuit breaking, and timeout handling.
+  Public auth routes are `/api/v1/auth/register`, `/api/v1/auth/login`, and `/api/v1/auth/refresh`; other proxied routes require a Bearer access token.
 
 ## Setup
 

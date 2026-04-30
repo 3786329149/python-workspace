@@ -11,6 +11,7 @@ def test_common_modules_import() -> None:
     import common.logger
     import common.redis
     import common.responses
+    import common.security
 
     assert common.config.BaseServiceConfig
     assert common.config.DatabaseConfigMixin
@@ -21,6 +22,7 @@ def test_common_modules_import() -> None:
     assert common.logger.get_logger
     assert common.redis.create_redis_client
     assert common.responses.error_response
+    assert common.security.create_jwt_token
 
 
 def test_config_reads_environment_override(monkeypatch) -> None:

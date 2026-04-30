@@ -7,6 +7,7 @@ from common.responses import register_common_handlers
 from common.logger import configure_logging
 from gateway.config import settings
 from gateway.api.v1.proxy import router as proxy_router
+from gateway.core.auth import register_auth_middleware
 from gateway.core.circuit_breaker import CircuitBreaker
 from gateway.core.rate_limit import InMemoryRateLimiter
 
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
     configure_logging(settings.LOG_LEVEL)
     app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
     register_common_handlers(app)
+    register_auth_middleware(app)
     
     app.include_router(proxy_router, prefix="/api/v1")
 

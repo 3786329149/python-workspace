@@ -1,5 +1,7 @@
 import asyncio
+import bcrypt
 from datetime import datetime
+from datetime import timedelta
 from types import TracebackType
 from typing import Self
 from uuid import UUID, uuid4
@@ -7,10 +9,11 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 
+from common.security import ACCESS_TOKEN_TYPE, decode_jwt_token
 from auth_service.api.deps import get_auth_service
-from auth_service.application.commands import RegisterCommand
+from auth_service.application.commands import LoginCommand, RegisterCommand
 from auth_service.application.services import AuthApplicationService
-from auth_service.domain.errors import AuthAlreadyExists
+from auth_service.domain.errors import AuthAlreadyExists, AuthInvalidCredentials
 from auth_service.domain.models import IdentityType, UserAuth
 from auth_service.main import create_app
 
@@ -200,5 +203,72 @@ def test_register_compensates_profile_when_password_binding_fails() -> None:
 
         assert user_profiles.deleted_user_ids == [user_profiles.user_id]
         assert user_profiles.request_ids == ["request-3", "request-3"]
+
+    asyncio.run(run())
+
+
+def test_login_returns_access_and_refresh_tokens() -> None:
+    async def run() -> None:
+        uow = InMemoryAuthUnitOfWork()
+        user_id = uuid4()
+        hashed_password = bcrypt.hashpw(
+            b"secret123",
+            bcrypt.gensalt(),
+        ).decode("utf-8")
+        await uow.auths.add(
+            UserAuth(
+                id=uuid4(),
+                user_id=user_id,
+                identity_type=IdentityType.PASSWORD,
+                identifier="person",
+                credential=hashed_password,
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+            )
+        )
+        service = AuthApplicationService(
+            uow,
+            jwt_secret_key="test-secret-with-at-least-32-bytes",
+            access_token_expire_minutes=5,
+            refresh_token_expire_days=1,
+        )
+
+        response = await service.login(
+            LoginCommand(username="person", password="secret123")
+        )
+
+        assert response["token_type"] == "bearer"
+        assert response["expires_in"] == int(timedelta(minutes=5).total_seconds())
+        payload = decode_jwt_token(
+            str(response["access_token"]),
+            secret_key="test-secret-with-at-least-32-bytes",
+            algorithm="HS256",
+            expected_type=ACCESS_TOKEN_TYPE,
+        )
+        assert payload["sub"] == str(user_id)
+
+    asyncio.run(run())
+
+
+def test_login_rejects_invalid_password() -> None:
+    async def run() -> None:
+        uow = InMemoryAuthUnitOfWork()
+        await uow.auths.add(
+            UserAuth(
+                id=uuid4(),
+                user_id=uuid4(),
+                identity_type=IdentityType.PASSWORD,
+                identifier="person",
+                credential=bcrypt.hashpw(b"secret123", bcrypt.gensalt()).decode(
+                    "utf-8"
+                ),
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+            )
+        )
+        service = AuthApplicationService(uow)
+
+        with pytest.raises(AuthInvalidCredentials):
+            await service.login(LoginCommand(username="person", password="wrong123"))
 
     asyncio.run(run())

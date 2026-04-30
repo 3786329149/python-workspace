@@ -11,3 +11,12 @@ class RegisterCommand(BaseModel):
     email: str
     username: str = Field(..., min_length=3, max_length=64)
     password: str = Field(..., min_length=6, max_length=128)
+
+
+class LoginCommand(BaseModel):
+    username: str = Field(..., min_length=3, max_length=64)
+    password: str = Field(..., min_length=6, max_length=128)
+
+
+class RefreshTokenCommand(BaseModel):
+    refresh_token: str

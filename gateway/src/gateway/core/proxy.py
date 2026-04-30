@@ -106,6 +106,9 @@ def _proxy_headers(request: Request) -> dict[str, str]:
     request_id = getattr(request.state, "request_id", None)
     if request_id:
         headers[REQUEST_ID_HEADER] = request_id
+    user_id = getattr(request.state, "user_id", None)
+    if user_id:
+        headers["X-User-ID"] = user_id
 
     forwarded_for = request.headers.get("x-forwarded-for")
     client_host = request.client.host if request.client else ""

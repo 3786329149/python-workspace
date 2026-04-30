@@ -1,6 +1,9 @@
 import httpx
+from datetime import timedelta
 from fastapi.testclient import TestClient
 
+from common.security import ACCESS_TOKEN_TYPE, create_jwt_token
+from gateway.config import settings
 from gateway.core.circuit_breaker import CircuitBreaker
 from gateway.core.rate_limit import InMemoryRateLimiter
 from gateway.main import create_app
@@ -88,14 +91,31 @@ def test_gateway_proxy_forwards_query_params() -> None:
     with TestClient(app) as client:
         app.state.http_client = fake_client
         response = client.get(
-            "/api/v1/auth/sessions?include=profile&include=roles",
-            headers={"X-Request-ID": "query-request"},
+            "/api/v1/users?include=profile&include=roles",
+            headers={
+                "X-Request-ID": "query-request",
+                "Authorization": f"Bearer {_access_token('user-1')}",
+            },
         )
 
     assert response.status_code == 201
     assert fake_client.method == "GET"
-    assert fake_client.url.endswith("/api/v1/auth/sessions")
+    assert fake_client.url.endswith("/api/v1/users")
     assert fake_client.params == [("include", "profile"), ("include", "roles")]
+    assert fake_client.headers["X-User-ID"] == "user-1"
+
+
+def test_gateway_blocks_protected_route_without_token() -> None:
+    app = create_app()
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/users",
+            headers={"X-Request-ID": "query-request"},
+        )
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "AUTH_REQUIRED"
 
 
 def test_gateway_rate_limit_blocks_excess_requests() -> None:
@@ -108,8 +128,8 @@ def test_gateway_rate_limit_blocks_excess_requests() -> None:
             window_seconds=60,
         )
 
-        first = client.get("/api/v1/auth/health")
-        second = client.get("/api/v1/auth/health")
+        first = client.post("/api/v1/auth/register", json={})
+        second = client.post("/api/v1/auth/register", json={})
 
     assert first.status_code == 201
     assert second.status_code == 429
@@ -126,9 +146,19 @@ def test_gateway_circuit_breaker_opens_after_upstream_failure() -> None:
             recovery_seconds=60,
         )
 
-        first = client.get("/api/v1/auth/health")
-        second = client.get("/api/v1/auth/health")
+        first = client.post("/api/v1/auth/register", json={})
+        second = client.post("/api/v1/auth/register", json={})
 
     assert first.status_code == 502
     assert second.status_code == 503
     assert second.headers["Retry-After"]
+
+
+def _access_token(user_id: str) -> str:
+    return create_jwt_token(
+        subject=user_id,
+        secret_key=settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
+        expires_delta=timedelta(minutes=5),
+        token_type=ACCESS_TOKEN_TYPE,
+    )

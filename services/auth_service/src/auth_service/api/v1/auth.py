@@ -2,11 +2,19 @@ from fastapi import APIRouter, Depends, Request, status
 
 from auth_service.api.deps import get_auth_service, require_internal_token
 from auth_service.application.services import AuthApplicationService
-from auth_service.application.commands import BindPasswordCommand, RegisterCommand
+from auth_service.application.commands import (
+    BindPasswordCommand,
+    LoginCommand,
+    RefreshTokenCommand,
+    RegisterCommand,
+)
 from auth_service.api.v1.schemas import (
     AuthBindResponse,
+    LoginRequest,
+    RefreshTokenRequest,
     RegisterRequest,
     RegisterResponse,
+    TokenResponse,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -27,6 +35,24 @@ async def register(
         request_id=getattr(request.state, "request_id", None),
     )
     return RegisterResponse(**data)
+
+
+@router.post("/login", response_model=TokenResponse)
+async def login(
+    payload: LoginRequest,
+    service: AuthApplicationService = Depends(get_auth_service),
+) -> TokenResponse:
+    data = await service.login(LoginCommand(**payload.model_dump()))
+    return TokenResponse(**data)
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh(
+    payload: RefreshTokenRequest,
+    service: AuthApplicationService = Depends(get_auth_service),
+) -> TokenResponse:
+    data = await service.refresh(RefreshTokenCommand(**payload.model_dump()))
+    return TokenResponse(**data)
 
 
 @router.post(

@@ -15,3 +15,10 @@ AUTH_ROUTE = ServiceRoute(
     base_url=settings.AUTH_SERVICE_URL,
     upstream_prefix="/api/v1/auth",
 )
+
+
+USER_ROUTE = ServiceRoute(
+    name="user-service",
+    base_url=settings.USER_SERVICE_URL,
+    upstream_prefix="/api/v1/users",
+)

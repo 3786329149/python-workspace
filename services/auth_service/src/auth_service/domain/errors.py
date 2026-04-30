@@ -13,6 +13,12 @@ class AuthAlreadyExists(AuthError):
     default_message = "authentication identity already exists"
 
 
+class AuthInvalidCredentials(AuthError):
+    code = "AUTH_INVALID_CREDENTIALS"
+    status_code = 401
+    default_message = "invalid username or password"
+
+
 class AuthRegistrationFailed(AuthError):
     code = "AUTH_REGISTRATION_FAILED"
     status_code = 503
