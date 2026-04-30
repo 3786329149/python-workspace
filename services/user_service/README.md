@@ -14,6 +14,8 @@ uv run --package user-service python -m user_service.server
 
 Default local port is `5601`; override it with `SERVICE_PORT` in
 `services/user_service/.env`.
+Gateway-only current-user routes also require `INTERNAL_API_TOKEN` to match the
+gateway configuration.
 
 Run migrations:
 
@@ -25,6 +27,7 @@ API v1:
 
 ```text
 POST   /api/v1/users
+GET    /api/v1/users/me
 GET    /api/v1/users/{user_id}
 GET    /api/v1/users/by-email/{email}
 PATCH  /api/v1/users/{user_id}

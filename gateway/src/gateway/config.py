@@ -16,6 +16,7 @@ class GatewayConfig(BaseServiceConfig):
     PROXY_TIMEOUT_SECONDS: float = 10.0
     JWT_SECRET_KEY: str = "dev-secret-change-me-with-at-least-32-bytes"
     JWT_ALGORITHM: str = "HS256"
+    INTERNAL_API_TOKEN: str = ""
 
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_REQUESTS: int = 120

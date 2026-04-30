@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from common.security import ACCESS_TOKEN_TYPE, create_jwt_token
 from gateway.config import settings
+from gateway.core import proxy as gateway_proxy
 from gateway.core.circuit_breaker import CircuitBreaker
 from gateway.core.rate_limit import InMemoryRateLimiter
 from gateway.main import create_app
@@ -84,7 +85,8 @@ def test_gateway_auth_route_is_generic_proxy() -> None:
     assert b"secret123" in fake_client.content
 
 
-def test_gateway_proxy_forwards_query_params() -> None:
+def test_gateway_proxy_forwards_query_params(monkeypatch) -> None:
+    monkeypatch.setattr(gateway_proxy.settings, "INTERNAL_API_TOKEN", "internal")
     app = create_app()
     fake_client = FakeHttpClient()
 
@@ -102,6 +104,28 @@ def test_gateway_proxy_forwards_query_params() -> None:
     assert fake_client.method == "GET"
     assert fake_client.url.endswith("/api/v1/users")
     assert fake_client.params == [("include", "profile"), ("include", "roles")]
+    assert fake_client.headers["X-User-ID"] == "user-1"
+    assert fake_client.headers["X-Internal-Token"] == "internal"
+
+
+def test_gateway_overwrites_client_internal_token(monkeypatch) -> None:
+    monkeypatch.setattr(gateway_proxy.settings, "INTERNAL_API_TOKEN", "internal")
+    app = create_app()
+    fake_client = FakeHttpClient()
+
+    with TestClient(app) as client:
+        app.state.http_client = fake_client
+        response = client.get(
+            "/api/v1/users/me",
+            headers={
+                "Authorization": f"Bearer {_access_token('user-1')}",
+                "X-Internal-Token": "spoofed",
+                "X-User-ID": "spoofed",
+            },
+        )
+
+    assert response.status_code == 201
+    assert fake_client.headers["X-Internal-Token"] == "internal"
     assert fake_client.headers["X-User-ID"] == "user-1"
 
 

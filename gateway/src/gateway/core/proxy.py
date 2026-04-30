@@ -4,6 +4,7 @@ import httpx
 from fastapi import HTTPException, Request, Response, status
 
 from common.responses import REQUEST_ID_HEADER
+from gateway.config import settings
 from gateway.core.circuit_breaker import CircuitOpen
 from gateway.core.rate_limit import RateLimitExceeded
 from gateway.core.routes import ServiceRoute
@@ -35,7 +36,7 @@ async def proxy_request(
             request.method,
             _upstream_url(service_route, path),
             content=await request.body(),
-            headers=_proxy_headers(request),
+            headers=_proxy_headers(request, service_route),
             params=list(request.query_params.multi_items()),
         )
     except httpx.TimeoutException as exc:
@@ -96,11 +97,12 @@ def _upstream_url(service_route: ServiceRoute, path: str) -> str:
     return urljoin(f"{service_route.base_url.rstrip('/')}/", upstream_path.lstrip("/"))
 
 
-def _proxy_headers(request: Request) -> dict[str, str]:
+def _proxy_headers(request: Request, service_route: ServiceRoute) -> dict[str, str]:
     headers = {
         key: value
         for key, value in request.headers.items()
         if key.lower() not in HOP_BY_HOP_HEADERS
+        and key.lower() not in {"x-internal-token", "x-user-id"}
     }
 
     request_id = getattr(request.state, "request_id", None)
@@ -109,6 +111,13 @@ def _proxy_headers(request: Request) -> dict[str, str]:
     user_id = getattr(request.state, "user_id", None)
     if user_id:
         headers["X-User-ID"] = user_id
+    if service_route.requires_internal_token:
+        if not settings.INTERNAL_API_TOKEN:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="internal api token is not configured",
+            )
+        headers["X-Internal-Token"] = settings.INTERNAL_API_TOKEN
 
     forwarded_for = request.headers.get("x-forwarded-for")
     client_host = request.client.host if request.client else ""

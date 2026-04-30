@@ -20,6 +20,7 @@ class UserServiceConfig(
     DEFAULT_SERVICE_PORT: ClassVar[int] = 5601
 
     PROJECT_NAME: str = "user-service"
+    INTERNAL_API_TOKEN: str = ""
 
     model_config = SettingsConfigDict(
         env_file=SERVICE_ENV_FILE,

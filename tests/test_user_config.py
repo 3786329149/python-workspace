@@ -10,6 +10,7 @@ def test_user_service_config_defaults() -> None:
     assert config.DB_NAME == "user_db"
     assert config.REDIS_URL == "redis://localhost:6379/0"
     assert config.SERVICE_PORT == 5601
+    assert config.INTERNAL_API_TOKEN == ""
     assert config.async_db_url == "postgresql+asyncpg://postgres@localhost:5432/user_db"
 
 

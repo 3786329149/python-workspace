@@ -3,7 +3,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Response, status
 from pydantic import EmailStr
 
-from user_service.api.deps import get_user_service
+from user_service.api.deps import (
+    get_current_user_id,
+    get_user_service,
+    require_internal_token,
+)
 from user_service.api.v1.schemas import (
     UserCreateRequest,
     UserResponse,
@@ -28,12 +32,16 @@ async def create_user(
     return UserResponse.from_domain(user)
 
 
-@router.get("/{user_id}", response_model=UserResponse)
-async def get_user(
-    user_id: UUID,
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    dependencies=[Depends(require_internal_token)],
+)
+async def get_current_user(
+    current_user_id: UUID = Depends(get_current_user_id),
     service: UserApplicationService = Depends(get_user_service),
 ) -> UserResponse:
-    user = await service.get_user(user_id)
+    user = await service.get_user(current_user_id)
     return UserResponse.from_domain(user)
 
 
@@ -43,6 +51,15 @@ async def get_user_by_email(
     service: UserApplicationService = Depends(get_user_service),
 ) -> UserResponse:
     user = await service.get_user_by_email(str(email))
+    return UserResponse.from_domain(user)
+
+
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: UUID,
+    service: UserApplicationService = Depends(get_user_service),
+) -> UserResponse:
+    user = await service.get_user(user_id)
     return UserResponse.from_domain(user)
 
 
