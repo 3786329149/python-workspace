@@ -14,6 +14,7 @@ from user_service.application.commands import (
 from user_service.application.unit_of_work import UserUnitOfWork
 from user_service.domain.errors import UserAlreadyExists, UserNotFound
 from user_service.domain.models import (
+    AuditLog,
     DataScope,
     Department,
     Role,
@@ -78,7 +79,7 @@ class UserApplicationService:
             menus = await self.uow.menus.get_by_role_id(role_id)
         return sorted({m.perms for m in menus if m.perms and m.menu_type == "F"})
 
-    async def update_role_permissions(self, role_id: UUID, menu_ids: list[UUID]) -> None:
+    async def update_role_permissions(self, role_id: UUID, menu_ids: list[UUID], actor_id: UUID | None = None) -> None:
         """Replace all permissions for a role."""
         from common.errors import AppError
         async with self.uow:
@@ -101,8 +102,18 @@ class UserApplicationService:
         # Invalidate cache outside of transaction
         for uid in user_ids:
             await self._delete_permission_cache(uid)
+            
+        if actor_id:
+            await self._add_audit_log(
+                user_id=actor_id,
+                action="update_role_permissions",
+                resource="role",
+                resource_id=str(role_id),
+                details=f"Updated permissions to: {menu_ids}",
+                tenant_id=role.tenant_id
+            )
 
-    async def assign_role_to_user(self, user_id: UUID, role_id: UUID) -> None:
+    async def assign_role_to_user(self, user_id: UUID, role_id: UUID, actor_id: UUID | None = None) -> None:
         """Assign a role to a user and invalidate the user's permission cache."""
         async with self.uow:
             user = await self.uow.users.get_by_id(user_id)
@@ -116,6 +127,16 @@ class UserApplicationService:
             await self.uow.commit()
 
         await self._delete_permission_cache(user_id)
+        
+        if actor_id:
+            await self._add_audit_log(
+                user_id=actor_id,
+                action="assign_role",
+                resource="user",
+                resource_id=str(user_id),
+                details=f"Assigned role {role_id}",
+                tenant_id=user.tenant_id
+            )
 
     async def create_role(self, command: CreateRoleCommand) -> Role:
         """Create a new role and return it."""
@@ -405,7 +426,7 @@ class UserApplicationService:
         await self._delete_cache(user.id)
         return user
 
-    async def remove_role_from_user(self, user_id: UUID, role_id: UUID) -> None:
+    async def remove_role_from_user(self, user_id: UUID, role_id: UUID, actor_id: UUID | None = None) -> None:
         async with self.uow:
             user = await self.uow.users.get_by_id(user_id)
             if user is None:
@@ -413,6 +434,16 @@ class UserApplicationService:
             await self.uow.roles.remove_role_from_user(user_id, role_id)
             await self.uow.commit()
         await self._delete_permission_cache(user_id)
+        
+        if actor_id:
+            await self._add_audit_log(
+                user_id=actor_id,
+                action="remove_role",
+                resource="user",
+                resource_id=str(user_id),
+                details=f"Removed role {role_id}",
+                tenant_id=user.tenant_id
+            )
 
     async def _change_status(self, user_id: UUID, action: str) -> User:
         async with self.uow:
@@ -478,6 +509,38 @@ class UserApplicationService:
             await self.cache.delete_permissions(user_id)
         except Exception:
             return
+
+    async def _add_audit_log(
+        self,
+        user_id: UUID,
+        action: str,
+        resource: str,
+        resource_id: str | None = None,
+        details: str | None = None,
+        tenant_id: UUID | None = None,
+        status: str = "success",
+    ) -> None:
+        """Record an audit log entry."""
+        if tenant_id is None:
+            from user_service.infrastructure.db.context import get_current_tenant
+            tenant_id = get_current_tenant()
+            
+        if tenant_id is None:
+            # If still None, we can't record it properly with tenant mixin, but let's try or skip
+            return
+
+        log = AuditLog.create(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            action=action,
+            resource=resource,
+            resource_id=resource_id,
+            details=details,
+            status=status,
+        )
+        async with self.uow:
+            await self.uow.audit_logs.add(log)
+            await self.uow.commit()
 
     # ------------------------------------------------------------------ #
     # Department management

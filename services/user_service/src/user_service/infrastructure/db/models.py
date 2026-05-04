@@ -125,3 +125,16 @@ class MenuRecord(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     icon: Mapped[str | None] = mapped_column(String(100), comment="菜单图标")
     order_num: Mapped[int] = mapped_column(Integer, default=0, comment="显示顺序")
 
+
+class AuditLogRecord(UUIDPrimaryKeyMixin, TimestampMixin, TenantMixin, Base):
+    """操作审计日志表"""
+    __tablename__ = "audit_logs"
+
+    user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), index=True, comment="操作用户ID")
+    action: Mapped[str] = mapped_column(String(100), index=True, comment="操作动作")
+    resource: Mapped[str] = mapped_column(String(100), comment="操作资源")
+    resource_id: Mapped[str | None] = mapped_column(String(100), comment="资源ID")
+    details: Mapped[str | None] = mapped_column(Text, comment="操作详情(JSON)")
+    ip_address: Mapped[str | None] = mapped_column(String(45), comment="操作IP")
+    status: Mapped[str] = mapped_column(String(20), default="success", comment="操作状态")
+

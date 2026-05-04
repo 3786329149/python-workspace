@@ -32,8 +32,8 @@ class UserServiceConfig(
     @model_validator(mode="after")
     def validate_prod_config(self) -> 'UserServiceConfig':
         if self.ENV != "dev":
-            if not self.INTERNAL_API_TOKEN:
-                raise ValueError("INTERNAL_API_TOKEN must be configured in production")
+            if not self.INTERNAL_API_TOKEN or len(self.INTERNAL_API_TOKEN) < 32:
+                raise ValueError("INTERNAL_API_TOKEN must be at least 32 characters in production")
         return self
 
 

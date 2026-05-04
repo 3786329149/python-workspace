@@ -133,6 +133,7 @@ async def get_my_permissions(
 async def assign_role(
     user_id: UUID,
     payload: AssignRoleRequest,
+    current_user_id: UUID = Depends(get_current_user_id),
     service: UserApplicationService = Depends(get_user_service),
 ) -> None:
     """Assign an existing role to a user.
@@ -140,7 +141,7 @@ async def assign_role(
     Automatically invalidates the user's permission cache so the next
     request to ``/me/permissions`` reflects the new role.
     """
-    await service.assign_role_to_user(user_id, payload.role_id)
+    await service.assign_role_to_user(user_id, payload.role_id, actor_id=current_user_id)
 
 
 @router.delete(
@@ -152,9 +153,10 @@ async def assign_role(
 async def remove_role(
     user_id: UUID,
     role_id: UUID,
+    current_user_id: UUID = Depends(get_current_user_id),
     service: UserApplicationService = Depends(get_user_service),
 ) -> None:
-    await service.remove_role_from_user(user_id, role_id)
+    await service.remove_role_from_user(user_id, role_id, actor_id=current_user_id)
 
 
 # --------------------------------------------------------------------------- #
@@ -270,10 +272,11 @@ async def list_roles(
 async def update_role_permissions(
     role_id: UUID,
     payload: UpdateRolePermissionsRequest,
+    current_user_id: UUID = Depends(get_current_user_id),
     service: UserApplicationService = Depends(get_user_service),
 ) -> None:
     """Replace all permissions for a role with a new set of menu IDs."""
-    await service.update_role_permissions(role_id, payload.menu_ids)
+    await service.update_role_permissions(role_id, payload.menu_ids, actor_id=current_user_id)
 
 @roles_router.patch(
     "/{role_id}",

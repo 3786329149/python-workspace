@@ -3,11 +3,13 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from user_service.domain.models import DataScope, Department, Menu, Role, User, UserStatus, normalize_email
+from user_service.domain.models import AuditLog, DataScope, Department, Menu, Role, User, UserStatus, normalize_email
 from user_service.infrastructure.db.context import get_current_tenant
 from user_service.infrastructure.db.models import (
-...
+    AuditLogRecord,
+    DepartmentRecord,
     MenuRecord,
+
     RoleRecord,
     UserRecord,
     role_menus,
@@ -327,5 +329,56 @@ class SqlAlchemyDepartmentRepository:
             created_at=r.created_at,
             updated_at=r.updated_at,
             deleted_at=r.deleted_at,
+        )
+
+
+class SqlAlchemyAuditLogRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def add(self, log: AuditLog) -> None:
+        record = AuditLogRecord(
+            id=log.id,
+            tenant_id=log.tenant_id,
+            user_id=log.user_id,
+            action=log.action,
+            resource=log.resource,
+            resource_id=log.resource_id,
+            details=log.details,
+            ip_address=log.ip_address,
+            status=log.status,
+            created_at=log.created_at,
+            updated_at=log.updated_at,
+        )
+        self.session.add(record)
+
+    async def get_all(
+        self, 
+        tenant_id: UUID | None = None,
+        user_id: UUID | None = None
+    ) -> list[AuditLog]:
+        target_tenant = tenant_id or get_current_tenant()
+        stmt = select(AuditLogRecord).order_by(AuditLogRecord.created_at.desc())
+        if target_tenant:
+            stmt = stmt.where(AuditLogRecord.tenant_id == target_tenant)
+        if user_id:
+            stmt = stmt.where(AuditLogRecord.user_id == user_id)
+            
+        result = await self.session.execute(stmt)
+        return [self._to_domain(r) for r in result.scalars().all()]
+
+    def _to_domain(self, r: AuditLogRecord) -> AuditLog:
+        return AuditLog(
+            id=r.id,
+            tenant_id=r.tenant_id,
+            user_id=r.user_id,
+            action=r.action,
+            resource=r.resource,
+            resource_id=r.resource_id,
+            details=r.details,
+            ip_address=r.ip_address,
+            status=r.status,
+            created_at=r.created_at,
+            updated_at=r.updated_at,
         )
 

@@ -4,6 +4,7 @@ from typing import Self
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from user_service.infrastructure.db.repositories import (
+    SqlAlchemyAuditLogRepository,
     SqlAlchemyDepartmentRepository,
     SqlAlchemyMenuRepository,
     SqlAlchemyRoleRepository,
@@ -19,6 +20,7 @@ class SqlAlchemyUnitOfWork:
         self.roles: SqlAlchemyRoleRepository
         self.menus: SqlAlchemyMenuRepository
         self.departments: SqlAlchemyDepartmentRepository
+        self.audit_logs: SqlAlchemyAuditLogRepository
 
     async def __aenter__(self) -> Self:
         self.session = self.session_factory()
@@ -26,6 +28,7 @@ class SqlAlchemyUnitOfWork:
         self.roles = SqlAlchemyRoleRepository(self.session)
         self.menus = SqlAlchemyMenuRepository(self.session)
         self.departments = SqlAlchemyDepartmentRepository(self.session)
+        self.audit_logs = SqlAlchemyAuditLogRepository(self.session)
         return self
 
     async def __aexit__(

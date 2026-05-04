@@ -43,8 +43,8 @@ class GatewayConfig(RedisConfigMixin, BaseServiceConfig):
         if self.ENV != "dev":
             if self.JWT_SECRET_KEY == "dev-secret-change-me-with-at-least-32-bytes":
                 raise ValueError("JWT_SECRET_KEY must be changed in production")
-            if not self.INTERNAL_API_TOKEN:
-                raise ValueError("INTERNAL_API_TOKEN must be configured in production")
+            if not self.INTERNAL_API_TOKEN or len(self.INTERNAL_API_TOKEN) < 32:
+                raise ValueError("INTERNAL_API_TOKEN must be at least 32 characters in production")
             # Usually URL checking might check if they are explicitly passed, but checking if they are the default local host might be okay, or just trust they are set by infra. The requirements specifically say "must be configured". If they are the default, it means they might not be configured, but it's hard to distinguish.
             if self.USER_SERVICE_URL == "http://127.0.0.1:5601":
                 raise ValueError("USER_SERVICE_URL must be configured in production")

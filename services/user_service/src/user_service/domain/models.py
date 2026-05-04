@@ -165,6 +165,48 @@ class Department:
 
 
 @dataclass(slots=True)
+class AuditLog:
+    id: UUID
+    tenant_id: UUID
+    user_id: UUID
+    action: str
+    resource: str
+    resource_id: str | None
+    details: str | None
+    ip_address: str | None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def create(
+        cls,
+        tenant_id: UUID,
+        user_id: UUID,
+        action: str,
+        resource: str,
+        resource_id: str | None = None,
+        details: str | None = None,
+        ip_address: str | None = None,
+        status: str = "success",
+    ) -> "AuditLog":
+        now = datetime.now(UTC)
+        return cls(
+            id=uuid4(),
+            tenant_id=tenant_id,
+            user_id=user_id,
+            action=action,
+            resource=resource,
+            resource_id=resource_id,
+            details=details,
+            ip_address=ip_address,
+            status=status,
+            created_at=now,
+            updated_at=now,
+        )
+
+
+@dataclass(slots=True)
 class Role:
     id: UUID
     tenant_id: UUID
