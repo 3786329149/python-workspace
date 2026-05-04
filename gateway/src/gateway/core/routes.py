@@ -28,3 +28,27 @@ USER_ROUTE = ServiceRoute(
     upstream_prefix="/api/v1/users",
     requires_internal_token=True,
 )
+
+
+ROLE_ROUTE = ServiceRoute(
+    name="user-service",
+    base_url=settings.USER_SERVICE_URL,
+    upstream_prefix="/api/v1/roles",
+    requires_internal_token=True,
+)
+
+
+MENU_ROUTE = ServiceRoute(
+    name="user-service",
+    base_url=settings.USER_SERVICE_URL,
+    upstream_prefix="/api/v1/menus",
+    requires_internal_token=True,
+)
+
+
+DEPT_ROUTE = ServiceRoute(
+    name="user-service",
+    base_url=settings.USER_SERVICE_URL,
+    upstream_prefix="/api/v1/depts",
+    requires_internal_token=True,
+)
