@@ -39,3 +39,12 @@ class SoftDeleteMixin:
 
     def soft_delete(self) -> None:
         self.deleted_at = utc_now()
+
+
+class TenantMixin:
+    tenant_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        index=True,
+        nullable=False,
+        comment="租户ID",
+    )

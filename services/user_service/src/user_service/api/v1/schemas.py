@@ -55,12 +55,19 @@ class UserResponse(BaseModel):
     status: UserStatus
     is_admin: bool
     dept_id: UUID | None
+    roles: list[str] = []
+    permissions: list[str] = []
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
 
     @classmethod
-    def from_domain(cls, user: User) -> "UserResponse":
+    def from_domain(
+        cls, 
+        user: User, 
+        roles: list[str] | None = None, 
+        permissions: list[str] | None = None
+    ) -> "UserResponse":
         return cls(
             id=user.id,
             tenant_id=user.tenant_id,
@@ -73,6 +80,8 @@ class UserResponse(BaseModel):
             status=user.status,
             is_admin=user.is_admin,
             dept_id=user.dept_id,
+            roles=roles or [],
+            permissions=permissions or [],
             created_at=user.created_at,
             updated_at=user.updated_at,
             deleted_at=user.deleted_at,

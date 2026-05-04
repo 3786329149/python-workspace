@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from common.database import SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
+from common.database import SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin, TenantMixin
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -84,11 +84,10 @@ class UserRecord(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
 
 
 # 部门表
-class DepartmentRecord(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
+class DepartmentRecord(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):
     """部门表"""
     __tablename__ = "departments"
     
-    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), index=True, comment="租户ID")
     parent_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("departments.id"), index=True, comment="父部门ID")
     name: Mapped[str] = mapped_column(String(100), comment="部门名称")
     # 存储所有父级 ID，如 "id1,id2" 方便递归查询
@@ -97,11 +96,10 @@ class DepartmentRecord(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Bas
 
 
 # 角色表
-class RoleRecord(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
+class RoleRecord(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):
     """角色表"""
     __tablename__ = "roles"
     
-    tenant_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), index=True, comment="租户ID")
     name: Mapped[str] = mapped_column(String(50), comment="角色名称")
    
     # 角色标识如 'admin', 'editor'

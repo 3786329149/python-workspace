@@ -3,9 +3,10 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from user_service.domain.models import Department, Menu, Role, User, UserStatus, normalize_email
+from user_service.domain.models import DataScope, Department, Menu, Role, User, UserStatus, normalize_email
+from user_service.infrastructure.db.context import get_current_tenant
 from user_service.infrastructure.db.models import (
-    DepartmentRecord,
+...
     MenuRecord,
     RoleRecord,
     UserRecord,
@@ -54,12 +55,38 @@ class SqlAlchemyUserRepository:
         record = result.scalar_one_or_none()
         return record.to_domain() if record else None
 
-    async def get_all(self, tenant_id: UUID | None = None) -> list[User]:
+    async def get_all(
+        self, 
+        tenant_id: UUID | None = None,
+        data_scope: DataScope = DataScope.ALL,
+        current_user_id: UUID | None = None,
+        current_dept_id: UUID | None = None
+    ) -> list[User]:
         stmt = select(UserRecord).where(UserRecord.status != UserStatus.DELETED.value)
-        if tenant_id:
-            stmt = stmt.where(UserRecord.tenant_id == tenant_id)
+
+        # Enforce tenant isolation
+        target_tenant = tenant_id or get_current_tenant()
+        if target_tenant:
+            stmt = stmt.where(UserRecord.tenant_id == target_tenant)
+
+        if data_scope == DataScope.DEPT:
+...
+            if current_dept_id:
+                stmt = stmt.where(UserRecord.dept_id == current_dept_id)
+            else:
+                # If user has no department but role says "dept only", they see nothing? 
+                # Or maybe they see only themselves? Let's be strict.
+                stmt = stmt.where(UserRecord.id == current_user_id)
+        elif data_scope == DataScope.SELF:
+            stmt = stmt.where(UserRecord.id == current_user_id)
+            
         result = await self.session.execute(stmt)
         return [r.to_domain() for r in result.scalars().all()]
+
+    async def get_user_ids_by_role(self, role_id: UUID) -> list[UUID]:
+        stmt = select(user_roles.c.user_id).where(user_roles.c.role_id == role_id)
+        result = await self.session.execute(stmt)
+        return [UUID(str(r)) for r in result.scalars().all()]
 
     async def delete(self, user_id: UUID) -> None:
         from datetime import UTC, datetime
@@ -100,9 +127,14 @@ class SqlAlchemyRoleRepository:
         result = await self.session.execute(stmt)
         return [self._to_domain(r) for r in result.scalars().all()]
 
-    async def get_by_tenant_id(self, tenant_id: UUID) -> list[Role]:
+    async def get_by_tenant_id(self, tenant_id: UUID | None = None) -> list[Role]:
+        target_tenant = tenant_id or get_current_tenant()
+        if not target_tenant:
+            # If no tenant context and no tenant_id provided, return nothing for safety
+            return []
+
         stmt = select(RoleRecord).where(
-            RoleRecord.tenant_id == tenant_id, RoleRecord.deleted_at.is_(None)
+            RoleRecord.tenant_id == target_tenant, RoleRecord.deleted_at.is_(None)
         )
         result = await self.session.execute(stmt)
         return [self._to_domain(r) for r in result.scalars().all()]
@@ -174,6 +206,11 @@ class SqlAlchemyMenuRepository:
         stmt = delete(role_menus).where(role_menus.c.role_id == role_id, role_menus.c.menu_id == menu_id)
         await self.session.execute(stmt)
 
+    async def remove_all_from_role(self, role_id: UUID) -> None:
+        from sqlalchemy import delete
+        stmt = delete(role_menus).where(role_menus.c.role_id == role_id)
+        await self.session.execute(stmt)
+
     def _to_domain(self, r: MenuRecord) -> Menu:
         return Menu(
             id=r.id,
@@ -215,11 +252,30 @@ class SqlAlchemyDepartmentRepository:
             return None
         return self._to_domain(record)
 
-    async def get_by_tenant_id(self, tenant_id: UUID) -> list[Department]:
+    async def get_by_tenant_id(
+        self, 
+        tenant_id: UUID | None = None,
+        data_scope: DataScope = DataScope.ALL,
+        current_dept_id: UUID | None = None
+    ) -> list[Department]:
+        target_tenant = tenant_id or get_current_tenant()
+        if not target_tenant:
+            return []
+
         stmt = select(DepartmentRecord).where(
-            DepartmentRecord.tenant_id == tenant_id,
+            DepartmentRecord.tenant_id == target_tenant,
             DepartmentRecord.deleted_at.is_(None),
         ).order_by(DepartmentRecord.order_num)
+        
+        if data_scope in (DataScope.DEPT, DataScope.SELF):
+            if current_dept_id:
+                # For DEPT scope, we often want to see the dept and all its sub-depts
+                # But to keep it simple and consistent with User filtering for now:
+                stmt = stmt.where(DepartmentRecord.id == current_dept_id)
+            else:
+                # No dept, no visibility
+                return []
+                
         result = await self.session.execute(stmt)
         return [self._to_domain(r) for r in result.scalars().all()]
 

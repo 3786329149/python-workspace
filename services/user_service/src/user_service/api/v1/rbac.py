@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
 
-from user_service.api.deps import get_current_user_id, get_user_service, require_internal_token
+from user_service.api.deps import get_current_user_id, get_user_service, require_internal_token, require_permission
 from user_service.application.commands import (
     AssignMenuToRoleCommand,
     CreateRoleCommand,
@@ -55,20 +55,26 @@ class RoleResponse(BaseModel):
     name: str
     role_key: str
     data_scope: int
+    permissions: list[str] = []
     created_at: datetime
     updated_at: datetime
 
     @classmethod
-    def from_domain(cls, role: Role) -> "RoleResponse":
+    def from_domain(cls, role: Role, permissions: list[str] | None = None) -> "RoleResponse":
         return cls(
             id=role.id,
             tenant_id=role.tenant_id,
             name=role.name,
             role_key=role.role_key,
             data_scope=role.data_scope,
+            permissions=permissions or [],
             created_at=role.created_at,
             updated_at=role.updated_at,
         )
+
+
+class UpdateRolePermissionsRequest(BaseModel):
+    menu_ids: list[UUID]
 
 
 class AssignMenuRequest(BaseModel):
@@ -85,6 +91,10 @@ class MenuResponse(BaseModel):
     order_num: int
     created_at: datetime
     updated_at: datetime
+
+
+class MenuTreeNode(MenuResponse):
+    children: list["MenuTreeNode"] = []
 
 
 # --------------------------------------------------------------------------- #
@@ -118,6 +128,7 @@ async def get_my_permissions(
     "/{user_id}/roles",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Assign a role to a user",
+    dependencies=[Depends(require_permission("role:assign"))],
 )
 async def assign_role(
     user_id: UUID,
@@ -136,6 +147,7 @@ async def assign_role(
     "/{user_id}/roles/{role_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove a role from a user",
+    dependencies=[Depends(require_permission("role:assign"))],
 )
 async def remove_role(
     user_id: UUID,
@@ -161,6 +173,7 @@ roles_router = APIRouter(
     response_model=RoleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new role",
+    dependencies=[Depends(require_permission("role:create"))],
 )
 async def create_role(
     payload: CreateRoleRequest,
@@ -186,6 +199,7 @@ async def create_role(
     "/{role_id}/permissions",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Assign a menu/permission-point to a role",
+    dependencies=[Depends(require_permission("role:edit"))],
 )
 async def assign_menu_to_role(
     role_id: UUID,
@@ -205,6 +219,7 @@ async def assign_menu_to_role(
     "/{role_id}/permissions/{menu_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove a menu/permission-point from a role",
+    dependencies=[Depends(require_permission("role:edit"))],
 )
 async def remove_menu_from_role(
     role_id: UUID,
@@ -219,30 +234,52 @@ async def remove_menu_from_role(
     "/{role_id}",
     response_model=RoleResponse,
     summary="Get role details",
+    dependencies=[Depends(require_permission("role:list"))],
 )
 async def get_role(
     role_id: UUID,
     service: UserApplicationService = Depends(get_user_service),
 ) -> RoleResponse:
     role = await service.get_role(role_id)
-    return RoleResponse.from_domain(role)
+    perms = await service.get_role_permissions(role_id)
+    return RoleResponse.from_domain(role, perms)
 
 @roles_router.get(
     "",
     response_model=list[RoleResponse],
     summary="List roles",
+    dependencies=[Depends(require_permission("role:list"))],
 )
 async def list_roles(
     tenant_id: UUID,
     service: UserApplicationService = Depends(get_user_service),
 ) -> list[RoleResponse]:
     roles = await service.get_all_roles(tenant_id)
-    return [RoleResponse.from_domain(r) for r in roles]
+    results = []
+    for r in roles:
+        perms = await service.get_role_permissions(r.id)
+        results.append(RoleResponse.from_domain(r, perms))
+    return results
+
+@roles_router.put(
+    "/{role_id}/permissions",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Update role permissions (bulk)",
+    dependencies=[Depends(require_permission("role:edit"))],
+)
+async def update_role_permissions(
+    role_id: UUID,
+    payload: UpdateRolePermissionsRequest,
+    service: UserApplicationService = Depends(get_user_service),
+) -> None:
+    """Replace all permissions for a role with a new set of menu IDs."""
+    await service.update_role_permissions(role_id, payload.menu_ids)
 
 @roles_router.patch(
     "/{role_id}",
     response_model=RoleResponse,
     summary="Update role",
+    dependencies=[Depends(require_permission("role:edit"))],
 )
 async def update_role(
     role_id: UUID,
@@ -261,6 +298,7 @@ async def update_role(
     "/{role_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete role",
+    dependencies=[Depends(require_permission("role:delete"))],
 )
 async def delete_role(
     role_id: UUID,
@@ -271,7 +309,7 @@ async def delete_role(
 menus_router = APIRouter(
     prefix="/menus",
     tags=["rbac"],
-    dependencies=[Depends(require_internal_token)],
+    dependencies=[Depends(require_internal_token), Depends(require_permission("role:list"))],
 )
 
 @menus_router.get(
@@ -298,3 +336,16 @@ async def list_menus(
         )
         for m in menus
     ]
+
+
+@menus_router.get(
+    "/tree",
+    response_model=list[MenuTreeNode],
+    summary="Get menu tree structure",
+)
+async def get_menu_tree(
+    service: UserApplicationService = Depends(get_user_service),
+) -> list[MenuTreeNode]:
+    """Return nested menu tree for sidebar rendering."""
+    tree = await service.get_menu_tree()
+    return tree  # type: ignore

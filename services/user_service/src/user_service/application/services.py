@@ -13,7 +13,15 @@ from user_service.application.commands import (
 )
 from user_service.application.unit_of_work import UserUnitOfWork
 from user_service.domain.errors import UserAlreadyExists, UserNotFound
-from user_service.domain.models import Department, Role, User, UserStatus, normalize_email, normalize_optional
+from user_service.domain.models import (
+    DataScope,
+    Department,
+    Role,
+    User,
+    UserStatus,
+    normalize_email,
+    normalize_optional,
+)
 
 PERMISSION_CACHE_TTL = 300  # 5 minutes
 
@@ -23,6 +31,24 @@ class UserApplicationService:
         self.uow = uow
         self.cache = cache
 
+    async def get_user_data_scope(self, user_id: UUID) -> DataScope:
+        """Calculate the widest data scope among all roles of the user."""
+        async with self.uow:
+            user = await self.uow.users.get_by_id(user_id)
+            if user is None:
+                raise UserNotFound("user not found")
+            
+            if user.is_admin:
+                return DataScope.ALL
+            
+            roles = await self.uow.roles.get_by_user_id(user_id)
+            if not roles:
+                return DataScope.SELF  # Default to narrowest if no roles
+            
+            # The lowest value is the most permissive (ALL=1)
+            min_scope = min(r.data_scope for r in roles)
+            return DataScope(min_scope)
+
     async def get_user_permissions(self, user_id: UUID) -> list[str]:
         """Get unique permission keys for a user (non-null perms from menus, type=F).
         Checks Redis first; falls back to DB and caches the result."""
@@ -31,13 +57,50 @@ class UserApplicationService:
             return cached
 
         async with self.uow:
-            menus = await self.uow.menus.get_by_user_id(user_id)
+            user = await self.uow.users.get_by_id(user_id)
+            if user is None:
+                raise UserNotFound("user not found")
+            
+            if user.is_admin:
+                # Super admins get all permissions in the system
+                all_menus = await self.uow.menus.get_all()
+                perms = sorted({m.perms for m in all_menus if m.perms and m.menu_type == "F"})
+            else:
+                menus = await self.uow.menus.get_by_user_id(user_id)
+                perms = sorted({m.perms for m in menus if m.perms and m.menu_type == "F"})
 
-        perms = sorted(
-            {m.perms for m in menus if m.perms and m.menu_type == "F"}
-        )
         await self._set_permission_cache(user_id, perms)
         return perms
+
+    async def get_role_permissions(self, role_id: UUID) -> list[str]:
+        """Get unique permission keys for a role."""
+        async with self.uow:
+            menus = await self.uow.menus.get_by_role_id(role_id)
+        return sorted({m.perms for m in menus if m.perms and m.menu_type == "F"})
+
+    async def update_role_permissions(self, role_id: UUID, menu_ids: list[UUID]) -> None:
+        """Replace all permissions for a role."""
+        from common.errors import AppError
+        async with self.uow:
+            role = await self.uow.roles.get_by_id(role_id)
+            if role is None:
+                raise AppError("role not found", code="ROLE_NOT_FOUND", status_code=404)
+            
+            # Clear existing
+            await self.uow.menus.remove_all_from_role(role_id)
+            
+            # Add new
+            for menu_id in menu_ids:
+                await self.uow.menus.assign_menu_to_role(role_id, menu_id)
+            
+            # Get affected users to invalidate cache
+            user_ids = await self.uow.users.get_user_ids_by_role(role_id)
+            
+            await self.uow.commit()
+
+        # Invalidate cache outside of transaction
+        for uid in user_ids:
+            await self._delete_permission_cache(uid)
 
     async def assign_role_to_user(self, user_id: UUID, role_id: UUID) -> None:
         """Assign a role to a user and invalidate the user's permission cache."""
@@ -144,11 +207,21 @@ class UserApplicationService:
             await self.uow.menus.remove_menu_from_role(command.role_id, command.menu_id)
             await self.uow.commit()
 
-    async def get_all_menus(self) -> list[dict]:
+    async def get_all_menus(self) -> list[Menu]:
         async with self.uow:
             menus = await self.uow.menus.get_all()
-        # could build tree if needed, for now just return flat or simplified. Actually we should return menus directly.
-        return menus # type: ignore
+        return menus
+
+    async def get_menu_tree(self) -> list[dict]:
+        """Return the full menu tree structure."""
+        menus = await self.get_all_menus()
+        return _build_menu_tree(menus)
+
+    async def get_user_role_keys(self, user_id: UUID) -> list[str]:
+        """Get role keys assigned to a user."""
+        async with self.uow:
+            roles = await self.uow.roles.get_by_user_id(user_id)
+        return [r.role_key for r in roles]
 
     async def create_user(self, command: CreateUserCommand) -> User:
         email = normalize_email(command.email)
@@ -284,9 +357,23 @@ class UserApplicationService:
 
         await self._delete_cache(command.user_id)
 
-    async def get_all_users(self, tenant_id: UUID | None = None) -> list[User]:
+    async def get_all_users(self, tenant_id: UUID | None = None, current_user_id: UUID | None = None) -> list[User]:
+        if current_user_id is None:
+            # If no user context provided, fallback to standard tenant-only or all
+            async with self.uow:
+                return await self.uow.users.get_all(tenant_id)
+        
+        # Calculate data scope
+        scope = await self.get_user_data_scope(current_user_id)
+        
         async with self.uow:
-            return await self.uow.users.get_all(tenant_id)
+            curr_user = await self.uow.users.get_by_id(current_user_id)
+            return await self.uow.users.get_all(
+                tenant_id=tenant_id,
+                data_scope=scope,
+                current_user_id=current_user_id,
+                current_dept_id=curr_user.dept_id if curr_user else None
+            )
 
     async def update_user_admin(self, command: UpdateUserAdminCommand) -> User:
         """Admin update of user fields."""
@@ -430,10 +517,22 @@ class UserApplicationService:
             raise AppError("department not found", code="DEPT_NOT_FOUND", status_code=404)
         return dept
 
-    async def get_department_tree(self, tenant_id: UUID) -> list[dict]:
+    async def get_department_tree(self, tenant_id: UUID, current_user_id: UUID | None = None) -> list[dict]:
         """Return the full department tree for a tenant as a nested list."""
+        if current_user_id is None:
+            async with self.uow:
+                depts = await self.uow.departments.get_by_tenant_id(tenant_id)
+            return _build_tree(depts)
+
+        scope = await self.get_user_data_scope(current_user_id)
+        
         async with self.uow:
-            depts = await self.uow.departments.get_by_tenant_id(tenant_id)
+            curr_user = await self.uow.users.get_by_id(current_user_id)
+            depts = await self.uow.departments.get_by_tenant_id(
+                tenant_id=tenant_id,
+                data_scope=scope,
+                current_dept_id=curr_user.dept_id if curr_user else None
+            )
         return _build_tree(depts)
 
     async def update_department(self, command: UpdateDepartmentCommand) -> Department:
@@ -497,6 +596,36 @@ def _build_tree(depts: list[Department]) -> list[dict]:
         pid = node["parent_id"]
         if pid and UUID(pid) in dept_map:
             dept_map[UUID(pid)]["children"].append(node)
+        else:
+            roots.append(node)
+
+    return roots
+
+
+def _build_menu_tree(menus: list[Menu]) -> list[dict]:
+    """Convert a flat list of menus into a nested tree structure."""
+    from uuid import UUID
+    menu_map: dict[UUID, dict] = {}
+    for m in menus:
+        menu_map[m.id] = {
+            "id": str(m.id),
+            "parent_id": str(m.parent_id) if m.parent_id else None,
+            "menu_name": m.menu_name,
+            "menu_type": m.menu_type,
+            "path": m.path,
+            "perms": m.perms,
+            "icon": m.icon,
+            "order_num": m.order_num,
+            "created_at": m.created_at.isoformat(),
+            "updated_at": m.updated_at.isoformat(),
+            "children": [],
+        }
+
+    roots: list[dict] = []
+    for node in menu_map.values():
+        pid = node["parent_id"]
+        if pid and UUID(pid) in menu_map:
+            menu_map[UUID(pid)]["children"].append(node)
         else:
             roots.append(node)
 

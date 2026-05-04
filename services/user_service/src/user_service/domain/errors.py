@@ -35,3 +35,9 @@ class UserInternalAuthFailed(UserError):
     code = "USER_INTERNAL_AUTH_FAILED"
     status_code = 403
     default_message = "invalid internal api token"
+
+
+class UserPermissionDenied(UserError):
+    code = "USER_PERMISSION_DENIED"
+    status_code = 403
+    default_message = "permission denied"

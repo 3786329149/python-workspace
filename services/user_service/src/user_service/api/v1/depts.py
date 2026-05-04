@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, Field
 
-from user_service.api.deps import get_user_service, require_internal_token
+from user_service.api.deps import get_current_user_id, get_user_service, require_internal_token, require_permission
 from user_service.application.commands import CreateDepartmentCommand, UpdateDepartmentCommand
 from user_service.application.services import UserApplicationService
 
@@ -66,9 +66,11 @@ class DeptTreeNode(BaseModel):
     "/tree",
     response_model=list[DeptTreeNode],
     summary="Get full department tree for a tenant",
+    dependencies=[Depends(require_permission("dept:list"))],
 )
 async def get_dept_tree(
     tenant_id: UUID,
+    current_user_id: UUID = Depends(get_current_user_id),
     service: UserApplicationService = Depends(get_user_service),
 ) -> list[DeptTreeNode]:
     """Return the nested department tree for *tenant_id*.
@@ -76,7 +78,7 @@ async def get_dept_tree(
     Root nodes (no parent) appear at the top level;
     each node carries a ``children`` list.
     """
-    tree = await service.get_department_tree(tenant_id)
+    tree = await service.get_department_tree(tenant_id, current_user_id=current_user_id)
     # Pydantic will recursively validate via DeptTreeNode
     return tree  # type: ignore[return-value]
 
@@ -85,6 +87,7 @@ async def get_dept_tree(
     "/{dept_id}",
     response_model=DeptResponse,
     summary="Get a single department",
+    dependencies=[Depends(require_permission("dept:list"))],
 )
 async def get_department(
     dept_id: UUID,
@@ -108,6 +111,7 @@ async def get_department(
     response_model=DeptResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a department",
+    dependencies=[Depends(require_permission("dept:create"))],
 )
 async def create_department(
     payload: DeptCreateRequest,
@@ -143,6 +147,7 @@ async def create_department(
     "/{dept_id}",
     response_model=DeptResponse,
     summary="Rename or reorder a department",
+    dependencies=[Depends(require_permission("dept:edit"))],
 )
 async def update_department(
     dept_id: UUID,
@@ -172,6 +177,7 @@ async def update_department(
     "/{dept_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a department (soft-delete)",
+    dependencies=[Depends(require_permission("dept:delete"))],
 )
 async def delete_department(
     dept_id: UUID,

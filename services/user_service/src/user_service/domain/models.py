@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import StrEnum
-from uuid import UUID, uuid4
+from enum import IntEnum, StrEnum
 
 
 class UserStatus(StrEnum):
@@ -9,6 +8,14 @@ class UserStatus(StrEnum):
     DISABLED = "disabled"
     PENDING = "pending"
     DELETED = "deleted"
+
+
+class DataScope(IntEnum):
+    ALL = 1
+    DEPT = 2
+    SELF = 3
+    CUSTOM = 4
+
 
 
 @dataclass(slots=True)
