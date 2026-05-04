@@ -28,8 +28,10 @@ from auth_service.application.idempotency import (
     AuthIdempotencyConflictError,
     AuthRegistrationCompensationFailedError,
 )
+from auth_service.application.refresh_tokens import RefreshTokenStore, RefreshTokenSession
 from auth_service.application.unit_of_work import AuthUnitOfWork
 from auth_service.application.user_profiles import UserProfileClient
+import time
 
 class AuthApplicationService:
     def __init__(
@@ -37,6 +39,7 @@ class AuthApplicationService:
         uow: AuthUnitOfWork,
         user_profiles: UserProfileClient | None = None,
         redis: Redis | None = None,
+        refresh_tokens: RefreshTokenStore | None = None,
         *,
         jwt_secret_key: str = "dev-secret-change-me-with-at-least-32-bytes",
         jwt_algorithm: str = "HS256",
@@ -46,6 +49,7 @@ class AuthApplicationService:
         self.uow = uow
         self.user_profiles = user_profiles
         self.idempotency_manager = RegistrationIdempotencyManager(redis) if redis else None
+        self.refresh_tokens = refresh_tokens
         self.jwt_secret_key = jwt_secret_key
         self.jwt_algorithm = jwt_algorithm
         self.access_token_expire_minutes = access_token_expire_minutes
@@ -146,7 +150,7 @@ class AuthApplicationService:
         if not password_matches:
             raise AuthInvalidCredentials()
 
-        return self._issue_tokens(auth.user_id)
+        return await self._issue_tokens(auth.user_id)
 
     async def refresh(self, command: RefreshTokenCommand) -> dict[str, str | int]:
         payload = decode_jwt_token(
@@ -155,7 +159,18 @@ class AuthApplicationService:
             algorithm=self.jwt_algorithm,
             expected_type=REFRESH_TOKEN_TYPE,
         )
-        return self._issue_tokens(UUID(str(payload["sub"])))
+        user_id = UUID(str(payload["sub"]))
+        jti = payload.get("jti")
+        
+        if not jti or not self.refresh_tokens:
+            raise AppError("invalid refresh token", status_code=401)
+            
+        session = await self.refresh_tokens.get(jti)
+        if not session or session.revoked_at:
+            raise AppError("refresh token revoked or invalid", status_code=401)
+            
+        await self.refresh_tokens.revoke(jti)
+        return await self._issue_tokens(user_id)
 
     async def bind_password(self, command: BindPasswordCommand) -> UserAuth:
         # Use bcrypt directly to avoid passlib incompatibility with newer bcrypt versions
@@ -188,26 +203,61 @@ class AuthApplicationService:
             
         return auth
 
-    def _issue_tokens(self, user_id: UUID) -> dict[str, str | int]:
+    async def logout(self, refresh_token: str) -> None:
+        try:
+            payload = decode_jwt_token(
+                refresh_token,
+                secret_key=self.jwt_secret_key,
+                algorithm=self.jwt_algorithm,
+                expected_type=REFRESH_TOKEN_TYPE,
+            )
+        except Exception:
+            return
+
+        jti = payload.get("jti")
+        if jti and self.refresh_tokens:
+            await self.refresh_tokens.revoke(jti)
+            
+    async def logout_all(self, user_id: UUID) -> None:
+        if self.refresh_tokens:
+            await self.refresh_tokens.revoke_all_for_user(user_id)
+
+    async def _issue_tokens(self, user_id: UUID) -> dict[str, str | int]:
+        from uuid import uuid4
         access_expires = timedelta(minutes=self.access_token_expire_minutes)
         refresh_expires = timedelta(days=self.refresh_token_expire_days)
         subject = str(user_id)
+        jti = str(uuid4())
+
+        access_token = create_jwt_token(
+            subject=subject,
+            secret_key=self.jwt_secret_key,
+            algorithm=self.jwt_algorithm,
+            expires_delta=access_expires,
+            token_type=ACCESS_TOKEN_TYPE,
+        )
+        refresh_token = create_jwt_token(
+            subject=subject,
+            secret_key=self.jwt_secret_key,
+            algorithm=self.jwt_algorithm,
+            expires_delta=refresh_expires,
+            token_type=REFRESH_TOKEN_TYPE,
+            jti=jti,
+        )
+
+        if self.refresh_tokens:
+            expires_at = int(time.time() + refresh_expires.total_seconds())
+            await self.refresh_tokens.save(
+                jti,
+                RefreshTokenSession(
+                    user_id=user_id,
+                    expires_at=expires_at,
+                )
+            )
 
         return {
-            "access_token": create_jwt_token(
-                subject=subject,
-                secret_key=self.jwt_secret_key,
-                algorithm=self.jwt_algorithm,
-                expires_delta=access_expires,
-                token_type=ACCESS_TOKEN_TYPE,
-            ),
-            "refresh_token": create_jwt_token(
-                subject=subject,
-                secret_key=self.jwt_secret_key,
-                algorithm=self.jwt_algorithm,
-                expires_delta=refresh_expires,
-                token_type=REFRESH_TOKEN_TYPE,
-            ),
+            "access_token": access_token,
+            "refresh_token": refresh_token,
             "token_type": "bearer",
             "expires_in": int(access_expires.total_seconds()),
         }

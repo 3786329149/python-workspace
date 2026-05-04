@@ -47,15 +47,15 @@
 
 任务：
 
-- [ ] 运行 `uv run pytest -q`，确认当前 31 个测试通过。
-- [ ] 运行 `uv lock --check`，确认锁文件一致。
-- [ ] 提交当前“用户上下文闭环”改动。
-- [ ] 保持 `.vscode/` 不进入提交，除非明确需要项目级 IDE 配置。
+- [x] 运行 `uv run pytest -q`，确认当前 31 个测试通过。
+- [x] 运行 `uv lock --check`，确认锁文件一致。
+- [x] 提交当前“用户上下文闭环”改动。
+- [x] 保持 `.vscode/` 不进入提交，除非明确需要项目级 IDE 配置。
 
 验收标准：
 
-- [ ] `git status --short` 只剩 `.vscode/` 或干净。
-- [ ] 提交信息符合 `type(scope): message(中文)`。
+- [x] `git status --short` 只剩 `.vscode/` 或干净。
+- [x] 提交信息符合 `type(scope): message(中文)`。
 
 建议提交信息：
 
@@ -81,56 +81,56 @@ feat(user): 完善当前用户上下文闭环
 接口调整：
 
 - auth-service:
-  - [ ] `POST /api/v1/auth/register` 要求 `Idempotency-Key`。
-  - [ ] 缺少 `Idempotency-Key` 返回 `428` 或 `400`，统一选 `428 Precondition Required`。
-  - [ ] 同 key 同 payload 重放，返回第一次成功响应。
-  - [ ] 同 key 不同 payload 返回 `409 AUTH_IDEMPOTENCY_CONFLICT`。
+  - [x] `POST /api/v1/auth/register` 要求 `Idempotency-Key`。
+  - [x] 缺少 `Idempotency-Key` 返回 `428` 或 `400`，统一选 `428 Precondition Required`。
+  - [x] 同 key 同 payload 重放，返回第一次成功响应。
+  - [x] 同 key 不同 payload 返回 `409 AUTH_IDEMPOTENCY_CONFLICT`。
 - user-service internal:
-  - [ ] `POST /internal/v1/users/registration-profile`
-  - [ ] `POST /internal/v1/users/{user_id}/activate`
-  - [ ] `DELETE /internal/v1/users/{user_id}`
-  - [ ] 以上接口均要求 `X-Internal-Token`。
+  - [x] `POST /internal/v1/users/registration-profile`
+  - [x] `POST /internal/v1/users/{user_id}/activate`
+  - [x] `DELETE /internal/v1/users/{user_id}`
+  - [x] 以上接口均要求 `X-Internal-Token`。
 
 实现任务：
 
-- [ ] user-service `User.create` 支持传入初始状态，默认仍为 `active`。
-- [ ] user-service 新增 application command：`CreateRegistrationProfileCommand`。
-- [ ] user-service 新增 internal router，独立挂载到 `/internal/v1`。
-- [ ] user-service internal 创建 profile 时写入 `UserStatus.PENDING`。
-- [ ] user-service 新增 activate 方法，只允许 `pending/disabled -> active`。
-- [ ] auth-service 注册 client 从公开 `/api/v1/users` 切到 user-service internal API。
-- [ ] auth-service 注册流程写 Redis 幂等状态：
+- [x] user-service `User.create` 支持传入初始状态，默认仍为 `active`。
+- [x] user-service 新增 application command：`CreateRegistrationProfileCommand`。
+- [x] user-service 新增 internal router，独立挂载到 `/internal/v1`。
+- [x] user-service internal 创建 profile 时写入 `UserStatus.PENDING`。
+- [x] user-service 新增 activate 方法，只允许 `pending/disabled -> active`。
+- [x] auth-service 注册 client 从公开 `/api/v1/users` 切到 user-service internal API。
+- [x] auth-service 注册流程写 Redis 幂等状态：
   - `started`
   - `profile_created`
   - `password_bound`
   - `completed`
   - `compensation_failed`
-- [ ] auth-service 对 payload 做稳定 hash，建议字段：`email`、`username`。
-- [ ] 密码不要进入幂等 hash 明文日志；如必须比较请求一致性，只比较密码 hash 摘要。
-- [ ] auth-service 注册成功后缓存完整响应，不缓存密码。
-- [ ] gateway 确认代理时透传 `Idempotency-Key`。
+- [x] auth-service 对 payload 做稳定 hash，建议字段：`email`、`username`。
+- [x] 密码不要进入幂等 hash 明文日志；如必须比较请求一致性，只比较密码 hash 摘要。
+- [x] auth-service 注册成功后缓存完整响应，不缓存密码。
+- [x] gateway 确认代理时透传 `Idempotency-Key`。
 
 失败处理：
 
-- [ ] 创建 pending user 失败：直接返回 user-service 错误。
-- [ ] 绑定密码失败：删除 pending user，返回 auth 错误。
-- [ ] 删除 pending user 失败：幂等状态标记 `compensation_failed`，返回 `503 AUTH_REGISTRATION_COMPENSATION_FAILED`。
-- [ ] 激活失败：幂等状态标记 `activation_pending`，同 key 重试只重试激活。
+- [x] 创建 pending user 失败：直接返回 user-service 错误。
+- [x] 绑定密码失败：删除 pending user，返回 auth 错误。
+- [x] 删除 pending user 失败：幂等状态标记 `compensation_failed`，返回 `503 AUTH_REGISTRATION_COMPENSATION_FAILED`。
+- [x] 激活失败：幂等状态标记 `activation_pending`，同 key 重试只重试激活。
 
 测试：
 
-- [ ] 注册成功：pending user -> bind password -> activate user。
-- [ ] 同 `Idempotency-Key` 同 payload 重放：返回缓存响应，不重复创建 user_auth。
-- [ ] 同 `Idempotency-Key` 不同 payload：返回 409。
-- [ ] bind password 失败：触发删除 pending user。
-- [ ] 删除 pending user 失败：返回 503，并记录可人工修复状态。
-- [ ] gateway 代理注册时透传 `Idempotency-Key`。
+- [x] 注册成功：pending user -> bind password -> activate user。
+- [x] 同 `Idempotency-Key` 同 payload 重放：返回缓存响应，不重复创建 user_auth。
+- [x] 同 `Idempotency-Key` 不同 payload：返回 409。
+- [x] bind password 失败：触发删除 pending user。
+- [x] 删除 pending user 失败：返回 503，并记录可人工修复状态。
+- [x] gateway 代理注册时透传 `Idempotency-Key`。
 
 验收标准：
 
-- [ ] 注册接口能安全重试。
-- [ ] 数据库不会出现 active 但无密码的正常用户。
-- [ ] 所有新增测试通过。
+- [x] 注册接口能安全重试。
+- [x] 数据库不会出现 active 但无密码的正常用户。
+- [x] 所有新增测试通过。
 
 ### Phase 2: Refresh token 存储、轮换与登出
 

@@ -28,6 +28,7 @@ def create_jwt_token(
     expires_delta: timedelta,
     token_type: str,
     claims: dict[str, Any] | None = None,
+    jti: str | None = None,
 ) -> str:
     now = datetime.now(UTC)
     payload: dict[str, Any] = {
@@ -36,6 +37,8 @@ def create_jwt_token(
         "iat": now,
         "exp": now + expires_delta,
     }
+    if jti:
+        payload["jti"] = jti
     if claims:
         payload.update(claims)
     return jwt.encode(payload, secret_key, algorithm=algorithm)

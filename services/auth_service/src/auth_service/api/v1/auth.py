@@ -15,6 +15,8 @@ from auth_service.api.v1.schemas import (
     RegisterRequest,
     RegisterResponse,
     TokenResponse,
+    LogoutRequest,
+    LogoutAllRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -55,6 +57,22 @@ async def refresh(
 ) -> TokenResponse:
     data = await service.refresh(RefreshTokenCommand(**payload.model_dump()))
     return TokenResponse(**data)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    payload: LogoutRequest,
+    service: AuthApplicationService = Depends(get_auth_service),
+) -> None:
+    await service.logout(payload.refresh_token)
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(
+    payload: LogoutAllRequest,
+    service: AuthApplicationService = Depends(get_auth_service),
+) -> None:
+    await service.logout_all(payload.user_id)
 
 
 @router.post(

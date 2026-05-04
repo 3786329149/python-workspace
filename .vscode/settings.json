@@ -1,0 +1,17 @@
+{
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/.venv": false,
+        "**/*.pyc": true,
+        "**/.git": true,
+        "**/.python-version": true,
+        "**/uv.lock": false
+    },
+    "search.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/node_modules": true,
+        "**/dist": true
+    }
+}
