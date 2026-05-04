@@ -1,13 +1,14 @@
 from types import TracebackType
 from typing import Protocol, Self
 
-from user_service.domain.repositories import MenuRepository, RoleRepository, UserRepository
+from user_service.domain.repositories import DepartmentRepository, MenuRepository, RoleRepository, UserRepository
 
 
 class UserUnitOfWork(Protocol):
     users: UserRepository
     roles: RoleRepository
     menus: MenuRepository
+    departments: DepartmentRepository
 
     """ 进入上下文时调用,应返回一个对象(通常是self) """
     async def __aenter__(self) -> Self: ...

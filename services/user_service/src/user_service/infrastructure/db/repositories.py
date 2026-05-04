@@ -3,8 +3,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from user_service.domain.models import Menu, Role, User, UserStatus, normalize_email
+from user_service.domain.models import Department, Menu, Role, User, UserStatus, normalize_email
 from user_service.infrastructure.db.models import (
+    DepartmentRecord,
     MenuRecord,
     RoleRecord,
     UserRecord,
@@ -152,3 +153,88 @@ class SqlAlchemyMenuRepository:
             updated_at=r.updated_at,
             deleted_at=r.deleted_at,
         )
+
+
+class SqlAlchemyDepartmentRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def add(self, dept: Department) -> None:
+        self.session.add(self._to_record(dept))
+
+    async def save(self, dept: Department) -> None:
+        record = await self.session.get(DepartmentRecord, dept.id)
+        if record is None:
+            await self.add(dept)
+            return
+        record.name = dept.name
+        record.parent_id = dept.parent_id
+        record.ancestors = dept.ancestors
+        record.order_num = dept.order_num
+        record.updated_at = dept.updated_at
+        record.deleted_at = dept.deleted_at
+
+    async def get_by_id(self, dept_id: UUID) -> Department | None:
+        record = await self.session.get(DepartmentRecord, dept_id)
+        if record is None or record.deleted_at is not None:
+            return None
+        return self._to_domain(record)
+
+    async def get_by_tenant_id(self, tenant_id: UUID) -> list[Department]:
+        stmt = select(DepartmentRecord).where(
+            DepartmentRecord.tenant_id == tenant_id,
+            DepartmentRecord.deleted_at.is_(None),
+        ).order_by(DepartmentRecord.order_num)
+        result = await self.session.execute(stmt)
+        return [self._to_domain(r) for r in result.scalars().all()]
+
+    async def get_children(self, parent_id: UUID) -> list[Department]:
+        stmt = select(DepartmentRecord).where(
+            DepartmentRecord.parent_id == parent_id,
+            DepartmentRecord.deleted_at.is_(None),
+        ).order_by(DepartmentRecord.order_num)
+        result = await self.session.execute(stmt)
+        return [self._to_domain(r) for r in result.scalars().all()]
+
+    async def get_descendants(self, dept_id: UUID) -> list[Department]:
+        """Return all departments that have dept_id anywhere in their ancestors path."""
+        from sqlalchemy import cast, String
+        stmt = select(DepartmentRecord).where(
+            DepartmentRecord.ancestors.contains(str(dept_id)),
+            DepartmentRecord.deleted_at.is_(None),
+        )
+        result = await self.session.execute(stmt)
+        return [self._to_domain(r) for r in result.scalars().all()]
+
+    async def delete(self, dept_id: UUID) -> None:
+        """Soft-delete a department (set deleted_at)."""
+        from datetime import UTC, datetime
+        record = await self.session.get(DepartmentRecord, dept_id)
+        if record is not None:
+            record.deleted_at = datetime.now(UTC)
+
+    def _to_record(self, dept: Department) -> DepartmentRecord:
+        record = DepartmentRecord(id=dept.id)
+        record.tenant_id = dept.tenant_id
+        record.name = dept.name
+        record.parent_id = dept.parent_id
+        record.ancestors = dept.ancestors
+        record.order_num = dept.order_num
+        record.created_at = dept.created_at
+        record.updated_at = dept.updated_at
+        record.deleted_at = dept.deleted_at
+        return record
+
+    def _to_domain(self, r: DepartmentRecord) -> Department:
+        return Department(
+            id=r.id,
+            tenant_id=r.tenant_id,
+            name=r.name,
+            parent_id=r.parent_id,
+            ancestors=r.ancestors or "",
+            order_num=r.order_num,
+            created_at=r.created_at,
+            updated_at=r.updated_at,
+            deleted_at=r.deleted_at,
+        )
+

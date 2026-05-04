@@ -44,3 +44,18 @@ class CreateRoleCommand:
 class AssignMenuToRoleCommand:
     role_id: UUID
     menu_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class CreateDepartmentCommand:
+    tenant_id: UUID
+    name: str
+    parent_id: UUID | None = None
+    order_num: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateDepartmentCommand:
+    dept_id: UUID
+    name: str | None = None
+    order_num: int | None = None

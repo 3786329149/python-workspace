@@ -1,15 +1,17 @@
 from user_service.application.cache import UserCache
 from user_service.application.commands import (
     AssignMenuToRoleCommand,
+    CreateDepartmentCommand,
     CreateRegistrationProfileCommand,
     CreateRoleCommand,
     CreateUserCommand,
+    UpdateDepartmentCommand,
     UpdateUserProfileCommand,
     UserIdCommand,
 )
 from user_service.application.unit_of_work import UserUnitOfWork
 from user_service.domain.errors import UserAlreadyExists, UserNotFound
-from user_service.domain.models import Role, User, UserStatus, normalize_email, normalize_optional
+from user_service.domain.models import Department, Role, User, UserStatus, normalize_email, normalize_optional
 
 PERMISSION_CACHE_TTL = 300  # 5 minutes
 
@@ -286,3 +288,113 @@ class UserApplicationService:
             await self.cache.delete_permissions(user_id)
         except Exception:
             return
+
+    # ------------------------------------------------------------------ #
+    # Department management
+    # ------------------------------------------------------------------ #
+
+    async def create_department(self, command: CreateDepartmentCommand) -> Department:
+        """Create a new department, computing the ancestors path automatically."""
+        from common.errors import AppError
+
+        async with self.uow:
+            parent: Department | None = None
+            if command.parent_id:
+                parent = await self.uow.departments.get_by_id(command.parent_id)
+                if parent is None:
+                    raise AppError(
+                        "parent department not found",
+                        code="DEPT_PARENT_NOT_FOUND",
+                        status_code=404,
+                    )
+            dept = Department.create(
+                tenant_id=command.tenant_id,
+                name=command.name,
+                parent=parent,
+                order_num=command.order_num,
+            )
+            await self.uow.departments.add(dept)
+            await self.uow.commit()
+        return dept
+
+    async def get_department(self, dept_id: UUID) -> Department:
+        """Get a single department by ID."""
+        from common.errors import AppError
+
+        async with self.uow:
+            dept = await self.uow.departments.get_by_id(dept_id)
+        if dept is None:
+            raise AppError("department not found", code="DEPT_NOT_FOUND", status_code=404)
+        return dept
+
+    async def get_department_tree(self, tenant_id: UUID) -> list[dict]:
+        """Return the full department tree for a tenant as a nested list."""
+        async with self.uow:
+            depts = await self.uow.departments.get_by_tenant_id(tenant_id)
+        return _build_tree(depts)
+
+    async def update_department(self, command: UpdateDepartmentCommand) -> Department:
+        """Rename or reorder a department."""
+        from common.errors import AppError
+
+        async with self.uow:
+            dept = await self.uow.departments.get_by_id(command.dept_id)
+            if dept is None:
+                raise AppError("department not found", code="DEPT_NOT_FOUND", status_code=404)
+            if command.name is not None:
+                dept.rename(command.name)
+            if command.order_num is not None:
+                dept.order_num = command.order_num
+            await self.uow.departments.save(dept)
+            await self.uow.commit()
+        return dept
+
+    async def delete_department(self, dept_id: UUID) -> None:
+        """Soft-delete a department.  Raises if it has living children."""
+        from common.errors import AppError
+
+        async with self.uow:
+            dept = await self.uow.departments.get_by_id(dept_id)
+            if dept is None:
+                raise AppError("department not found", code="DEPT_NOT_FOUND", status_code=404)
+            children = await self.uow.departments.get_children(dept_id)
+            if children:
+                raise AppError(
+                    "cannot delete department with sub-departments",
+                    code="DEPT_HAS_CHILDREN",
+                    status_code=409,
+                )
+            await self.uow.departments.delete(dept_id)
+            await self.uow.commit()
+
+
+# --------------------------------------------------------------------------- #
+# Helpers
+# --------------------------------------------------------------------------- #
+
+def _build_tree(depts: list[Department]) -> list[dict]:
+    """Convert a flat list of departments into a nested tree structure."""
+    from uuid import UUID
+    dept_map: dict[UUID, dict] = {}
+    for d in depts:
+        dept_map[d.id] = {
+            "id": str(d.id),
+            "tenant_id": str(d.tenant_id),
+            "name": d.name,
+            "parent_id": str(d.parent_id) if d.parent_id else None,
+            "ancestors": d.ancestors,
+            "order_num": d.order_num,
+            "created_at": d.created_at.isoformat(),
+            "updated_at": d.updated_at.isoformat(),
+            "children": [],
+        }
+
+    roots: list[dict] = []
+    for node in dept_map.values():
+        pid = node["parent_id"]
+        if pid and UUID(pid) in dept_map:
+            dept_map[UUID(pid)]["children"].append(node)
+        else:
+            roots.append(node)
+
+    return roots

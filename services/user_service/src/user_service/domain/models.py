@@ -105,6 +105,59 @@ def normalize_optional(value: str | None) -> str | None:
 
 
 @dataclass(slots=True)
+class Department:
+    id: UUID
+    tenant_id: UUID
+    name: str
+    parent_id: UUID | None
+    ancestors: str  # comma-separated ancestor IDs, e.g. "id1,id2"
+    order_num: int
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime | None = None
+
+    @classmethod
+    def create(
+        cls,
+        tenant_id: UUID,
+        name: str,
+        parent: "Department | None" = None,
+        order_num: int = 0,
+    ) -> "Department":
+        now = datetime.now(UTC)
+        if parent is None:
+            ancestors = ""
+        else:
+            parts = [p for p in parent.ancestors.split(",") if p]
+            parts.append(str(parent.id))
+            ancestors = ",".join(parts)
+        return cls(
+            id=uuid4(),
+            tenant_id=tenant_id,
+            name=name,
+            parent_id=parent.id if parent else None,
+            ancestors=ancestors,
+            order_num=order_num,
+            created_at=now,
+            updated_at=now,
+        )
+
+    def rename(self, name: str) -> None:
+        self.name = name
+        self.updated_at = datetime.now(UTC)
+
+    def ancestor_ids(self) -> list[UUID]:
+        """Return list of ancestor UUIDs (root-first)."""
+        return [UUID(a) for a in self.ancestors.split(",") if a]
+
+    def build_child_ancestors(self) -> str:
+        """Return the ancestors string a direct child of this dept should have."""
+        parts = [p for p in self.ancestors.split(",") if p]
+        parts.append(str(self.id))
+        return ",".join(parts)
+
+
+@dataclass(slots=True)
 class Role:
     id: UUID
     tenant_id: UUID
