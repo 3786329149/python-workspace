@@ -54,6 +54,20 @@ class SqlAlchemyUserRepository:
         record = result.scalar_one_or_none()
         return record.to_domain() if record else None
 
+    async def get_all(self, tenant_id: UUID | None = None) -> list[User]:
+        stmt = select(UserRecord).where(UserRecord.status != UserStatus.DELETED.value)
+        if tenant_id:
+            stmt = stmt.where(UserRecord.tenant_id == tenant_id)
+        result = await self.session.execute(stmt)
+        return [r.to_domain() for r in result.scalars().all()]
+
+    async def delete(self, user_id: UUID) -> None:
+        from datetime import UTC, datetime
+        record = await self.session.get(UserRecord, user_id)
+        if record is not None:
+            record.status = UserStatus.DELETED.value
+            record.deleted_at = datetime.now(UTC)
+
 
 class SqlAlchemyRoleRepository:
     def __init__(self, session: AsyncSession) -> None:
@@ -98,6 +112,17 @@ class SqlAlchemyRoleRepository:
         stmt = pg_insert(user_roles).values(user_id=user_id, role_id=role_id).on_conflict_do_nothing()
         await self.session.execute(stmt)
 
+    async def remove_role_from_user(self, user_id: UUID, role_id: UUID) -> None:
+        from sqlalchemy import delete
+        stmt = delete(user_roles).where(user_roles.c.user_id == user_id, user_roles.c.role_id == role_id)
+        await self.session.execute(stmt)
+
+    async def delete(self, role_id: UUID) -> None:
+        from datetime import UTC, datetime
+        record = await self.session.get(RoleRecord, role_id)
+        if record is not None:
+            record.deleted_at = datetime.now(UTC)
+
     def _to_domain(self, r: RoleRecord) -> Role:
         return Role(
             id=r.id,
@@ -134,9 +159,19 @@ class SqlAlchemyMenuRepository:
         result = await self.session.execute(stmt)
         return [self._to_domain(r) for r in result.scalars().all()]
 
+    async def get_all(self) -> list[Menu]:
+        stmt = select(MenuRecord).where(MenuRecord.deleted_at.is_(None)).order_by(MenuRecord.order_num)
+        result = await self.session.execute(stmt)
+        return [self._to_domain(r) for r in result.scalars().all()]
+
     async def assign_menu_to_role(self, role_id: UUID, menu_id: UUID) -> None:
         from sqlalchemy.dialects.postgresql import insert as pg_insert
         stmt = pg_insert(role_menus).values(role_id=role_id, menu_id=menu_id).on_conflict_do_nothing()
+        await self.session.execute(stmt)
+
+    async def remove_menu_from_role(self, role_id: UUID, menu_id: UUID) -> None:
+        from sqlalchemy import delete
+        stmt = delete(role_menus).where(role_menus.c.role_id == role_id, role_menus.c.menu_id == menu_id)
         await self.session.execute(stmt)
 
     def _to_domain(self, r: MenuRecord) -> Menu:

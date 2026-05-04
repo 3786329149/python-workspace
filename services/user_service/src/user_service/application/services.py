@@ -5,8 +5,10 @@ from user_service.application.commands import (
     CreateRegistrationProfileCommand,
     CreateRoleCommand,
     CreateUserCommand,
-    UpdateDepartmentCommand,
+    UpdateRoleCommand,
     UpdateUserProfileCommand,
+    UpdateUserAdminCommand,
+    RemoveMenuFromRoleCommand,
     UserIdCommand,
 )
 from user_service.application.unit_of_work import UserUnitOfWork
@@ -75,6 +77,49 @@ class UserApplicationService:
             await self.uow.commit()
         return role
 
+    async def get_role(self, role_id: UUID) -> Role:
+        """Get a single role by ID."""
+        from common.errors import AppError
+        async with self.uow:
+            role = await self.uow.roles.get_by_id(role_id)
+        if role is None:
+            raise AppError("role not found", code="ROLE_NOT_FOUND", status_code=404)
+        return role
+
+    async def get_all_roles(self, tenant_id: UUID) -> list[Role]:
+        async with self.uow:
+            return await self.uow.roles.get_by_tenant_id(tenant_id)
+
+    async def update_role(self, command: UpdateRoleCommand) -> Role:
+        from common.errors import AppError
+        async with self.uow:
+            role = await self.uow.roles.get_by_id(command.role_id)
+            if role is None:
+                raise AppError("role not found", code="ROLE_NOT_FOUND", status_code=404)
+            if command.name is not None:
+                role.name = command.name
+            if command.role_key is not None:
+                existing = await self.uow.roles.get_by_tenant_id(role.tenant_id)
+                if any(r.role_key == command.role_key and r.id != role.id for r in existing):
+                    raise AppError("role_key already exists", code="ROLE_ALREADY_EXISTS", status_code=409)
+                role.role_key = command.role_key
+            if command.data_scope is not None:
+                role.data_scope = command.data_scope
+            from datetime import datetime, UTC
+            role.updated_at = datetime.now(UTC)
+            await self.uow.roles.save(role)
+            await self.uow.commit()
+        return role
+
+    async def delete_role(self, role_id: UUID) -> None:
+        from common.errors import AppError
+        async with self.uow:
+            role = await self.uow.roles.get_by_id(role_id)
+            if role is None:
+                raise AppError("role not found", code="ROLE_NOT_FOUND", status_code=404)
+            await self.uow.roles.delete(role_id)
+            await self.uow.commit()
+
     async def assign_menu_to_role(self, command: AssignMenuToRoleCommand) -> None:
         """Assign a menu/permission-point to a role.
 
@@ -89,6 +134,21 @@ class UserApplicationService:
                 raise AppError("role not found", code="ROLE_NOT_FOUND", status_code=404)
             await self.uow.menus.assign_menu_to_role(command.role_id, command.menu_id)
             await self.uow.commit()
+
+    async def remove_menu_from_role(self, command: RemoveMenuFromRoleCommand) -> None:
+        from common.errors import AppError
+        async with self.uow:
+            role = await self.uow.roles.get_by_id(command.role_id)
+            if role is None:
+                raise AppError("role not found", code="ROLE_NOT_FOUND", status_code=404)
+            await self.uow.menus.remove_menu_from_role(command.role_id, command.menu_id)
+            await self.uow.commit()
+
+    async def get_all_menus(self) -> list[dict]:
+        async with self.uow:
+            menus = await self.uow.menus.get_all()
+        # could build tree if needed, for now just return flat or simplified. Actually we should return menus directly.
+        return menus # type: ignore
 
     async def create_user(self, command: CreateUserCommand) -> User:
         email = normalize_email(command.email)
@@ -223,6 +283,49 @@ class UserApplicationService:
             await self.uow.commit()
 
         await self._delete_cache(command.user_id)
+
+    async def get_all_users(self, tenant_id: UUID | None = None) -> list[User]:
+        async with self.uow:
+            return await self.uow.users.get_all(tenant_id)
+
+    async def update_user_admin(self, command: UpdateUserAdminCommand) -> User:
+        """Admin update of user fields."""
+        async with self.uow:
+            user = await self.uow.users.get_by_id(command.user_id)
+            if user is None:
+                raise UserNotFound("user not found")
+            
+            if command.email is not None:
+                user.email = normalize_email(command.email)
+            if command.username is not None:
+                user.username = normalize_optional(command.username)
+            if command.nickname is not None:
+                user.nickname = normalize_optional(command.nickname)
+            if command.phone is not None:
+                user.phone = normalize_optional(command.phone)
+            if command.avatar_url is not None:
+                user.avatar_url = command.avatar_url
+            if command.status is not None:
+                user.status = command.status
+            if command.is_admin is not None:
+                user.is_admin = command.is_admin
+            if command.dept_id is not None:
+                user.dept_id = command.dept_id
+
+            await self.uow.users.save(user)
+            await self.uow.commit()
+            
+        await self._delete_cache(user.id)
+        return user
+
+    async def remove_role_from_user(self, user_id: UUID, role_id: UUID) -> None:
+        async with self.uow:
+            user = await self.uow.users.get_by_id(user_id)
+            if user is None:
+                raise UserNotFound("user not found")
+            await self.uow.roles.remove_role_from_user(user_id, role_id)
+            await self.uow.commit()
+        await self._delete_permission_cache(user_id)
 
     async def _change_status(self, user_id: UUID, action: str) -> User:
         async with self.uow:

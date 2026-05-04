@@ -241,6 +241,41 @@ curl http://localhost:5600/api/v1/users/me \
 
 ---
 
+### 6.1. 获取用户列表
+
+```
+GET /api/v1/users?tenant_id={tenant_id}
+Authorization: Bearer <access_token>
+```
+
+**Response 200**
+返回 `UserResponse` 数组（格式同 `GET /users/me`）。
+
+---
+
+### 6.2. 获取单个用户详情
+
+```
+GET /api/v1/users/{user_id}
+Authorization: Bearer <access_token>
+```
+
+**Response 200**
+返回单个 `UserResponse` 对象。
+
+---
+
+### 6.3. 删除用户
+
+```
+DELETE /api/v1/users/{user_id}
+Authorization: Bearer <access_token>
+```
+
+**Response 204** — No Content
+
+---
+
 ### 7. 更新用户资料
 
 ```
@@ -297,6 +332,17 @@ curl http://localhost:5600/api/v1/users/me/permissions \
 
 ---
 
+### 8.1. 移除用户角色
+
+```
+DELETE /api/v1/users/{user_id}/roles/{role_id}
+Authorization: Bearer <access_token>
+```
+
+**Response 204** — No Content
+
+---
+
 ## RBAC 模块
 
 ### 9. 创建角色
@@ -339,6 +385,40 @@ Authorization: Bearer <access_token>
 
 ---
 
+### 9.1. 获取角色列表
+
+```
+GET /api/v1/roles?tenant_id={tenant_id}
+Authorization: Bearer <access_token>
+```
+
+**Response 200** — 返回角色对象数组
+
+---
+
+### 9.2. 获取/修改/删除角色
+
+**获取角色详情**
+```
+GET /api/v1/roles/{role_id}
+Authorization: Bearer <access_token>
+```
+
+**修改角色**
+```
+PATCH /api/v1/roles/{role_id}
+Authorization: Bearer <access_token>
+```
+**Request:** `{ "name": "新名称", "role_key": "new_key", "data_scope": 2 }` (均为可选)
+
+**删除角色**
+```
+DELETE /api/v1/roles/{role_id}
+Authorization: Bearer <access_token>
+```
+
+---
+
 ### 10. 给角色绑定权限点
 
 ```
@@ -372,6 +452,44 @@ Authorization: Bearer <access_token>
 ```
 
 **Response 204** — No Content（同时清除该用户的权限缓存）
+
+---
+
+### 11.1. 解绑角色权限点
+
+```
+DELETE /api/v1/roles/{role_id}/permissions/{menu_id}
+Authorization: Bearer <access_token>
+```
+
+**Response 204** — No Content
+
+---
+
+### 11.2. 获取系统可用菜单/权限点
+
+```
+GET /api/v1/menus
+Authorization: Bearer <access_token>
+```
+
+**Response 200**
+```json
+[
+  {
+    "id": "1fe024ae-4d24-4026-a27c-052a9167f656",
+    "parent_id": null,
+    "menu_name": "用户管理",
+    "menu_type": "M",
+    "path": "/users",
+    "perms": null,
+    "icon": "user",
+    "order_num": 1,
+    "created_at": "2026-05-04T02:00:00Z",
+    "updated_at": "2026-05-04T02:00:00Z"
+  }
+]
+```
 
 ---
 
@@ -417,6 +535,17 @@ Authorization: Bearer <access_token>
   }
 ]
 ```
+
+---
+
+### 12.1. 获取单个部门详情
+
+```
+GET /api/v1/depts/{dept_id}
+Authorization: Bearer <access_token>
+```
+
+**Response 200** — 返回包含 `ancestors` 字段的部门详情对象
 
 ---
 

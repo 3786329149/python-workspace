@@ -12,10 +12,12 @@ from user_service.api.v1.schemas import (
     UserCreateRequest,
     UserResponse,
     UserUpdateRequest,
+    UserAdminUpdateRequest,
 )
 from user_service.application.commands import (
     CreateUserCommand,
     UpdateUserProfileCommand,
+    UpdateUserAdminCommand,
     UserIdCommand,
 )
 from user_service.application.services import UserApplicationService
@@ -30,6 +32,14 @@ async def create_user(
 ) -> UserResponse:
     user = await service.create_user(CreateUserCommand(**payload.model_dump()))
     return UserResponse.from_domain(user)
+
+@router.get("", response_model=list[UserResponse])
+async def list_users(
+    tenant_id: UUID | None = None,
+    service: UserApplicationService = Depends(get_user_service),
+) -> list[UserResponse]:
+    users = await service.get_all_users(tenant_id)
+    return [UserResponse.from_domain(u) for u in users]
 
 
 @router.get(
@@ -72,6 +82,20 @@ async def update_user(
     changes = payload.model_dump(exclude_unset=True)
     user = await service.update_user_profile(
         UpdateUserProfileCommand(user_id=user_id, changes=changes)
+    )
+    return UserResponse.from_domain(user)
+
+@router.patch("/{user_id}/admin", response_model=UserResponse)
+async def update_user_admin(
+    user_id: UUID,
+    payload: UserAdminUpdateRequest,
+    service: UserApplicationService = Depends(get_user_service),
+) -> UserResponse:
+    user = await service.update_user_admin(
+        UpdateUserAdminCommand(
+            user_id=user_id,
+            **payload.model_dump(exclude_unset=True)
+        )
     )
     return UserResponse.from_domain(user)
 

@@ -59,3 +59,30 @@ class UpdateDepartmentCommand:
     dept_id: UUID
     name: str | None = None
     order_num: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateRoleCommand:
+    role_id: UUID
+    name: str | None = None
+    role_key: str | None = None
+    data_scope: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RemoveMenuFromRoleCommand:
+    role_id: UUID
+    menu_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateUserAdminCommand:
+    user_id: UUID
+    email: str | None = None
+    username: str | None = None
+    nickname: str | None = None
+    phone: str | None = None
+    avatar_url: str | None = None
+    status: str | None = None
+    is_admin: bool | None = None
+    dept_id: UUID | None = None

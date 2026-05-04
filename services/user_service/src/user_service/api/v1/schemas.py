@@ -30,6 +30,19 @@ class UserUpdateRequest(BaseModel):
     avatar_url: str | None = None
 
 
+class UserAdminUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr | None = None
+    username: str | None = Field(default=None, min_length=3, max_length=64)
+    nickname: str | None = Field(default=None, max_length=64)
+    phone: str | None = Field(default=None, max_length=32)
+    avatar_url: str | None = None
+    status: UserStatus | None = None
+    is_admin: bool | None = None
+    dept_id: UUID | None = None
+
+
 class UserResponse(BaseModel):
     id: UUID
     tenant_id: UUID | None
