@@ -1,6 +1,8 @@
 from user_service.application.cache import UserCache
 from user_service.application.commands import (
+    AssignMenuToRoleCommand,
     CreateRegistrationProfileCommand,
+    CreateRoleCommand,
     CreateUserCommand,
     UpdateUserProfileCommand,
     UserIdCommand,
@@ -47,6 +49,44 @@ class UserApplicationService:
             await self.uow.commit()
 
         await self._delete_permission_cache(user_id)
+
+    async def create_role(self, command: CreateRoleCommand) -> Role:
+        """Create a new role and return it."""
+        from common.errors import AppError
+
+        async with self.uow:
+            # Check for duplicate role_key within the same tenant
+            existing = await self.uow.roles.get_by_tenant_id(command.tenant_id)
+            if any(r.role_key == command.role_key for r in existing):
+                raise AppError(
+                    f"role_key '{command.role_key}' already exists in this tenant",
+                    code="ROLE_ALREADY_EXISTS",
+                    status_code=409,
+                )
+            role = Role.create(
+                tenant_id=command.tenant_id,
+                name=command.name,
+                role_key=command.role_key,
+                data_scope=command.data_scope,
+            )
+            await self.uow.roles.add(role)
+            await self.uow.commit()
+        return role
+
+    async def assign_menu_to_role(self, command: AssignMenuToRoleCommand) -> None:
+        """Assign a menu/permission-point to a role.
+
+        Permission caches (permission:user:{id}, TTL 5 min) will expire naturally.
+        For immediate revocation add a get-users-by-role query and call delete_permissions.
+        """
+        from common.errors import AppError
+
+        async with self.uow:
+            role = await self.uow.roles.get_by_id(command.role_id)
+            if role is None:
+                raise AppError("role not found", code="ROLE_NOT_FOUND", status_code=404)
+            await self.uow.menus.assign_menu_to_role(command.role_id, command.menu_id)
+            await self.uow.commit()
 
     async def create_user(self, command: CreateUserCommand) -> User:
         email = normalize_email(command.email)

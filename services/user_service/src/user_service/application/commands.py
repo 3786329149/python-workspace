@@ -30,3 +30,17 @@ class UserIdCommand:
 class CreateRegistrationProfileCommand:
     email: str
     username: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CreateRoleCommand:
+    tenant_id: UUID
+    name: str
+    role_key: str
+    data_scope: int = 1
+
+
+@dataclass(frozen=True, slots=True)
+class AssignMenuToRoleCommand:
+    role_id: UUID
+    menu_id: UUID
