@@ -8,6 +8,7 @@ from common.config import (
     find_service_env_file,
 )
 from pydantic_settings import SettingsConfigDict
+from pydantic import model_validator
 
 SERVICE_ENV_FILE = find_service_env_file("user_service")
 
@@ -27,6 +28,13 @@ class UserServiceConfig(
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def validate_prod_config(self) -> 'UserServiceConfig':
+        if self.ENV != "dev":
+            if not self.INTERNAL_API_TOKEN:
+                raise ValueError("INTERNAL_API_TOKEN must be configured in production")
+        return self
 
 
 @lru_cache

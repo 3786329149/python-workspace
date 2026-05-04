@@ -239,35 +239,35 @@ LOGIN_LOCK_SECONDS=900
 
 实现任务：
 
-- [ ] gateway 启动时校验非 dev 环境必须配置：
+- [x] gateway 启动时校验非 dev 环境必须配置：
   - `JWT_SECRET_KEY`
   - `INTERNAL_API_TOKEN`
   - `AUTH_SERVICE_URL`
   - `USER_SERVICE_URL`
-- [ ] auth-service 非 dev 环境必须配置：
+- [x] auth-service 非 dev 环境必须配置：
   - `JWT_SECRET_KEY`
   - `INTERNAL_API_TOKEN`
   - `USER_SERVICE_URL`
-- [ ] user-service 非 dev 环境必须配置：
+- [x] user-service 非 dev 环境必须配置：
   - `INTERNAL_API_TOKEN`
-- [ ] 禁止非 dev 使用 `change-me` 或默认 dev secret。
-- [ ] gateway 转发到 user-service 时始终覆盖客户端传入的：
+- [x] 禁止非 dev 使用 `change-me` 或默认 dev secret。
+- [x] gateway 转发到 user-service 时始终覆盖客户端传入的：
   - `X-User-ID`
   - `X-Internal-Token`
-- [ ] auth-service 调 user-service internal API 时携带 `X-Internal-Token`。
-- [ ] 所有 internal API 缺 token 或 token 错误返回统一错误码。
+- [x] auth-service 调 user-service internal API 时携带 `X-Internal-Token`。
+- [x] 所有 internal API 缺 token 或 token 错误返回统一错误码。
 
 测试：
 
-- [ ] prod 环境缺密钥时配置初始化失败。
-- [ ] 客户端伪造 `X-Internal-Token` 会被 gateway 覆盖。
-- [ ] user-service 直连 `/internal/v1/...` 无 token 被拒绝。
-- [ ] auth-service 到 user-service 的 internal 调用带 token。
+- [x] prod 环境缺密钥时配置初始化失败。
+- [x] 客户端伪造 `X-Internal-Token` 会被 gateway 覆盖。
+- [x] user-service 直连 `/internal/v1/...` 无 token 被拒绝。
+- [x] auth-service 到 user-service 的 internal 调用带 token。
 
 验收标准：
 
-- [ ] 非 dev 环境不会静默使用弱密钥。
-- [ ] user-service 不接受客户端伪造身份上下文。
+- [x] 非 dev 环境不会静默使用弱密钥。
+- [x] user-service 不接受客户端伪造身份上下文。
 
 ### Phase 5: 最小 RBAC 骨架
 

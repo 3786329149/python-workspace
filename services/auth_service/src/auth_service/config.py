@@ -8,6 +8,7 @@ from common.config import (
     find_service_env_file,
 )
 from pydantic_settings import SettingsConfigDict
+from pydantic import model_validator
 
 SERVICE_ENV_FILE = find_service_env_file("auth_service")
 
@@ -38,6 +39,17 @@ class AuthServiceConfig(
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def validate_prod_config(self) -> 'AuthServiceConfig':
+        if self.ENV != "dev":
+            if self.JWT_SECRET_KEY == "dev-secret-change-me-with-at-least-32-bytes":
+                raise ValueError("JWT_SECRET_KEY must be changed in production")
+            if not self.INTERNAL_API_TOKEN:
+                raise ValueError("INTERNAL_API_TOKEN must be configured in production")
+            if self.USER_SERVICE_URL == "http://127.0.0.1:5601":
+                raise ValueError("USER_SERVICE_URL must be configured in production")
+        return self
 
 
 @lru_cache

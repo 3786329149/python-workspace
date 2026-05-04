@@ -43,3 +43,31 @@ def test_gateway_env_file_path() -> None:
     expected = Path(__file__).resolve().parents[1] / "gateway" / ".env"
 
     assert SERVICE_ENV_FILE == expected
+
+
+import pytest
+from pydantic import ValidationError
+
+def test_gateway_config_prod_validation() -> None:
+    # default should fail if env=prod
+    with pytest.raises(ValidationError) as exc:
+        GatewayConfig(_env_file=None, ENV="prod")
+    
+    assert "JWT_SECRET_KEY must be changed" in str(exc.value)
+
+    # Missing internal api token
+    with pytest.raises(ValidationError) as exc:
+        GatewayConfig(_env_file=None, ENV="prod", JWT_SECRET_KEY="new-secret-key-12345678901234567890")
+    
+    assert "INTERNAL_API_TOKEN must be configured" in str(exc.value)
+
+    # With proper settings, it should pass
+    config = GatewayConfig(
+        _env_file=None, 
+        ENV="prod", 
+        JWT_SECRET_KEY="new-secret-key-12345678901234567890",
+        INTERNAL_API_TOKEN="super-secret",
+        USER_SERVICE_URL="http://user-service:5601",
+        AUTH_SERVICE_URL="http://auth-service:5602",
+    )
+    assert config.INTERNAL_API_TOKEN == "super-secret"

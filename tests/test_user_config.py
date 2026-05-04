@@ -38,3 +38,22 @@ def test_user_service_env_file_path() -> None:
     )
 
     assert SERVICE_ENV_FILE == expected
+
+
+import pytest
+from pydantic import ValidationError
+
+def test_user_config_prod_validation() -> None:
+    # default should fail if env=prod
+    with pytest.raises(ValidationError) as exc:
+        UserServiceConfig(_env_file=None, ENV="prod")
+    
+    assert "INTERNAL_API_TOKEN must be configured" in str(exc.value)
+
+    # With proper settings, it should pass
+    config = UserServiceConfig(
+        _env_file=None, 
+        ENV="prod", 
+        INTERNAL_API_TOKEN="super-secret",
+    )
+    assert config.INTERNAL_API_TOKEN == "super-secret"
