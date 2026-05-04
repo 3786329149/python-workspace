@@ -9,34 +9,34 @@
                                            │ HTTP
                     ┌──────────────────────▼─────────────────────────────┐
                     │              API Gateway (:5600)                   │
-                    │  - JWT 校验（access_token）                         │
-                    │  - 请求头清洗（X-User-ID / X-Internal-Token 防穿透）  │
+                    │  - JWT 校验（access_token）                          │
+                    │  - 请求头清洗（X-User-ID / X-Internal-Token 防穿透）   │
                     │  - Rate Limiting（滑动窗口，per-IP per-service）      │
-                    │  - Circuit Breaker（失败阈值熔断，自动恢复）           │
+                    │  - Circuit Breaker（失败阈值熔断，自动恢复）            │
                     │  - RBAC 权限校验（Redis + user-service 回调）         │
-                    │  - Request-ID 注入与传播                            │
-                    │  - X-Forwarded-For 传递                           │
+                    │  - Request-ID 注入与传播                             │
+                    │  - X-Forwarded-For 传递                             │
                     └──────┬───────────────────────────────┬─────────────┘
                            │                               │
-               ┌───────────▼───────────┐       ┌──────────▼────────────┐
-               │  auth-service (:5602) │       │ user-service (:5601)  │
-               │                       │       │                        │
-               │  - 注册（幂等）         │       │  - 用户 CRUD            │
-               │  - 登录（风控+JWT 签发）│       │  - RBAC：角色/权限点     │
-               │  - Refresh Token 轮换  │       │  - 部门树              │
-               │  - 登出/全设备登出      │◄──────│  - Redis 权限缓存       │
-               │  - JWT claims 注入角色  │       │                        │
-               └───────────┬───────────┘       └──────────┬────────────┘
-                           │                              │
-               ┌───────────▼──────────┐      ┌───────────▼────────────┐
-               │  auth_db (PostgreSQL) │      │  user_db (PostgreSQL)  │
-               │  user_auths          │      │  users / departments    │
-               │  refresh sessions→Redis│     │  roles / menus         │
-               └──────────────────────┘      │  user_roles / role_menus│
-                                             └────────────────────────┘
+               ┌───────────▼───────────-┐       ┌──────────▼────────────┐
+               │  auth-service (:5602)  │       │ user-service (:5601)  │
+               │                        │       │                       │
+               │  - 注册（幂等）          │       │  - 用户 CRUD           │
+               │  - 登录（风控+JWT 签发）  │       │  - RBAC：角色/权限点    │
+               │  - Refresh Token 轮换   │       │  - 部门树              │
+               │  - 登出/全设备登出        │◄──────│  - Redis 权限缓存      │
+               │  - JWT claims 注入角色   │       │                       │
+               └───────────┬───────────—┘       └──────────-┬───────────┘
+                           │                                │
+               ┌───────────▼──────────——┐     ┌─——──────────▼────────────┐
+               │  auth_db (PostgreSQL)	│     │  user_db (PostgreSQL)  	 │
+               │  user_auths          	│     │  users / departments     │
+               │  refresh sessions→Redis│     │  roles / menus           │
+               └──────────────────────——┘     │  user_roles / role_menus │
+                                              └──────────────────——─────-┘
                            │                              │
                ┌───────────▼──────────────────────────────▼────────────┐
-               │                     Redis                              │
+               │                     Redis                             │
                │  DB 1  auth-service（refresh sessions, 登录风控, 幂等键） │
                │  DB 0  user-service（user 缓存, permission 缓存）        │
                │  DB 0  gateway     （permission 缓存 L1 代理）           │
@@ -65,7 +65,7 @@ id (PK)                   id (PK)              id (PK)
 tenant_id                 tenant_id            parent_id → menus.id
 parent_id → depts.id      name                 menu_name
 name                      role_key (unique     menu_type  M/C/F
-ancestors  (","分隔)         within tenant)      path
+ancestors  (","分隔)       within tenant)       path
 order_num                 data_scope           perms  (如 user:list)
 created_at                created_at           icon / order_num
 updated_at                updated_at           created_at / updated_at
@@ -79,8 +79,7 @@ email (unique)            PK(user_id,role_id)  PK(role_id,menu_id)
 username (unique)
 nickname / phone
 avatar_url
-status  PENDING/ACTIVE/
-        DISABLED/DELETED
+status  PENDING/ACTIVE/DISABLED/DELETED
 is_admin
 dept_id → departments.id
 created_at / updated_at

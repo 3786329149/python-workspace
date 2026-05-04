@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from common.logger import configure_logging
 from common.redis import create_redis_client
 from common.responses import register_common_handlers
@@ -42,8 +43,20 @@ def create_app() -> FastAPI:
     configure_logging(settings.LOG_LEVEL)
     app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
     register_common_handlers(app)
+
+    # CORS — must be registered BEFORE the auth middleware so that
+    # OPTIONS preflight requests are handled and never reach auth checks.
+    origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Request-ID"],
+    )
+
     register_auth_middleware(app)
-    
     app.include_router(proxy_router, prefix="/api/v1")
 
     @app.get("/health")
