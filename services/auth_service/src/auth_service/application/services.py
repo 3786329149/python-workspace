@@ -20,6 +20,14 @@ from auth_service.application.commands import (
     RefreshTokenCommand,
     RegisterCommand,
 )
+from redis.asyncio import Redis
+from common.errors import AppError
+from auth_service.application.idempotency import (
+    RegistrationIdempotencyManager,
+    IdempotencyState,
+    AuthIdempotencyConflictError,
+    AuthRegistrationCompensationFailedError,
+)
 from auth_service.application.unit_of_work import AuthUnitOfWork
 from auth_service.application.user_profiles import UserProfileClient
 
@@ -28,6 +36,7 @@ class AuthApplicationService:
         self,
         uow: AuthUnitOfWork,
         user_profiles: UserProfileClient | None = None,
+        redis: Redis | None = None,
         *,
         jwt_secret_key: str = "dev-secret-change-me-with-at-least-32-bytes",
         jwt_algorithm: str = "HS256",
@@ -36,6 +45,7 @@ class AuthApplicationService:
     ) -> None:
         self.uow = uow
         self.user_profiles = user_profiles
+        self.idempotency_manager = RegistrationIdempotencyManager(redis) if redis else None
         self.jwt_secret_key = jwt_secret_key
         self.jwt_algorithm = jwt_algorithm
         self.access_token_expire_minutes = access_token_expire_minutes
@@ -46,21 +56,43 @@ class AuthApplicationService:
         command: RegisterCommand,
         *,
         request_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, str]:
+        if not idempotency_key:
+            raise AppError("Idempotency-Key is required", code="AUTH_IDEMPOTENCY_KEY_MISSING", status_code=428)
+
         if self.user_profiles is None:
             raise AuthRegistrationFailed("user profile client is not configured")
+
+        idem_mgr = self.idempotency_manager
+        if not idem_mgr:
+            raise AuthRegistrationFailed("redis is required for idempotency")
+
+        payload_hash = idem_mgr.hash_payload(command.email, command.username)
+        state = await idem_mgr.get_state(idempotency_key)
+
+        if state:
+            if state.payload_hash != payload_hash:
+                raise AuthIdempotencyConflictError()
+            
+            if state.status == "completed" and state.response:
+                return state.response
+            if state.status == "compensation_failed":
+                raise AuthRegistrationCompensationFailedError()
+
+        await idem_mgr.save_state(idempotency_key, IdempotencyState(status="started", payload_hash=payload_hash))
 
         user_data = await self.user_profiles.create_user(
             email=command.email,
             username=command.username,
             request_id=request_id,
         )
+        await idem_mgr.save_state(idempotency_key, IdempotencyState(status="profile_created", payload_hash=payload_hash))
+
         try:
             user_id = UUID(str(user_data["id"]))
         except (KeyError, TypeError, ValueError) as exc:
-            raise AuthRegistrationFailed(
-                "user service returned invalid user id"
-            ) from exc
+            raise AuthRegistrationFailed("user service returned invalid user id") from exc
 
         try:
             await self.bind_password(
@@ -70,21 +102,29 @@ class AuthApplicationService:
                     password=command.password,
                 )
             )
+            await idem_mgr.save_state(idempotency_key, IdempotencyState(status="password_bound", payload_hash=payload_hash))
         except Exception as exc:
             try:
                 await self.user_profiles.delete_user(user_id, request_id=request_id)
             except Exception as compensation_exc:
-                raise AuthRegistrationFailed(
-                    "registration failed and compensation failed"
-                ) from compensation_exc
+                await idem_mgr.save_state(idempotency_key, IdempotencyState(status="compensation_failed", payload_hash=payload_hash))
+                raise AuthRegistrationCompensationFailedError() from compensation_exc
             raise exc
 
-        return {
+        try:
+            await self.user_profiles.activate_user(user_id, request_id=request_id)
+        except Exception as exc:
+            await idem_mgr.save_state(idempotency_key, IdempotencyState(status="activation_pending", payload_hash=payload_hash))
+            raise AuthRegistrationFailed("activation failed") from exc
+
+        response = {
             "user_id": str(user_id),
             "email": str(user_data.get("email") or command.email),
             "username": str(user_data.get("username") or command.username),
             "message": "User registered successfully",
         }
+        await idem_mgr.save_state(idempotency_key, IdempotencyState(status="completed", payload_hash=payload_hash, response=response))
+        return response
 
     async def login(self, command: LoginCommand) -> dict[str, str | int]:
         async with self.uow:

@@ -17,3 +17,10 @@ class UserProfileClient(Protocol):
         *,
         request_id: str | None = None,
     ) -> None: ...
+
+    async def activate_user(
+        self,
+        user_id: UUID,
+        *,
+        request_id: str | None = None,
+    ) -> dict[str, object]: ...

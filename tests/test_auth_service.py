@@ -86,6 +86,21 @@ class InMemoryAuthUnitOfWork:
         self.rollbacks += 1
 
 
+from auth_service.application.idempotency import IdempotencyState
+
+class FakeIdempotencyManager:
+    def __init__(self) -> None:
+        self.states: dict[str, IdempotencyState] = {}
+        
+    def hash_payload(self, email: str, username: str | None) -> str:
+        return f"hash:{email}:{username}"
+        
+    async def get_state(self, key: str) -> IdempotencyState | None:
+        return self.states.get(key)
+        
+    async def save_state(self, key: str, state: IdempotencyState) -> None:
+        self.states[key] = state
+
 class FakeUserProfiles:
     def __init__(self) -> None:
         self.user_id = uuid4()
@@ -112,6 +127,15 @@ class FakeUserProfiles:
         self.deleted_user_ids.append(user_id)
 
 
+    async def activate_user(
+        self,
+        user_id: UUID,
+        *,
+        request_id: str | None = None,
+    ) -> dict[str, object]:
+        self.request_ids.append(request_id)
+        return {"status": "active"}
+
 class FakeAuthService:
     def __init__(self) -> None:
         self.request_id: str | None = None
@@ -121,6 +145,7 @@ class FakeAuthService:
         command: RegisterCommand,
         *,
         request_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, str]:
         self.request_id = request_id
         return {
@@ -144,7 +169,7 @@ def test_register_route_is_owned_by_auth_service() -> None:
                 "username": "person",
                 "password": "secret123",
             },
-            headers={"X-Request-ID": "request-1"},
+            headers={"X-Request-ID": "request-1", "Idempotency-Key": "test-idem-key"},
         )
 
     assert response.status_code == 201
@@ -158,6 +183,8 @@ def test_register_creates_profile_then_binds_password() -> None:
         user_profiles = FakeUserProfiles()
         service = AuthApplicationService(uow, user_profiles)
 
+        service.idempotency_manager = FakeIdempotencyManager()
+
         response = await service.register(
             RegisterCommand(
                 email="person@example.com",
@@ -165,12 +192,13 @@ def test_register_creates_profile_then_binds_password() -> None:
                 password="secret123",
             ),
             request_id="request-2",
+            idempotency_key="idem-1",
         )
 
         assert response["user_id"] == str(user_profiles.user_id)
         assert uow.commits == 1
         assert user_profiles.deleted_user_ids == []
-        assert user_profiles.request_ids == ["request-2"]
+        assert user_profiles.request_ids == ["request-2", "request-2"]
 
     asyncio.run(run())
 
@@ -191,6 +219,8 @@ def test_register_compensates_profile_when_password_binding_fails() -> None:
         )
         await uow.auths.add(existing)
 
+        service.idempotency_manager = FakeIdempotencyManager()
+
         with pytest.raises(AuthAlreadyExists):
             await service.register(
                 RegisterCommand(
@@ -199,6 +229,7 @@ def test_register_compensates_profile_when_password_binding_fails() -> None:
                     password="secret123",
                 ),
                 request_id="request-3",
+                idempotency_key="idem-2",
             )
 
         assert user_profiles.deleted_user_ids == [user_profiles.user_id]

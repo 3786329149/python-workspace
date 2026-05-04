@@ -9,10 +9,12 @@ def get_auth_service(request: Request) -> AuthApplicationService:
     user_profiles = HttpUserProfileClient(
         request.app.state.http_client,
         settings.USER_SERVICE_URL,
+        settings.INTERNAL_API_TOKEN,
     )
     return AuthApplicationService(
         uow,
         user_profiles,
+        request.app.state.redis,
         jwt_secret_key=settings.JWT_SECRET_KEY,
         jwt_algorithm=settings.JWT_ALGORITHM,
         access_token_expire_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,

@@ -30,9 +30,11 @@ async def register(
     request: Request,
     service: AuthApplicationService = Depends(get_auth_service),
 ) -> RegisterResponse:
+    idempotency_key = request.headers.get("Idempotency-Key")
     data = await service.register(
         RegisterCommand(**payload.model_dump()),
         request_id=getattr(request.state, "request_id", None),
+        idempotency_key=idempotency_key,
     )
     return RegisterResponse(**data)
 

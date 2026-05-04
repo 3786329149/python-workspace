@@ -7,9 +7,10 @@ from common.responses import REQUEST_ID_HEADER
 
 
 class HttpUserProfileClient:
-    def __init__(self, client: httpx.AsyncClient, base_url: str) -> None:
+    def __init__(self, client: httpx.AsyncClient, base_url: str, internal_token: str) -> None:
         self.client = client
         self.base_url = base_url.rstrip("/")
+        self.internal_token = internal_token
 
     async def create_user(
         self,
@@ -19,7 +20,7 @@ class HttpUserProfileClient:
         request_id: str | None = None,
     ) -> dict[str, object]:
         response = await self.client.post(
-            f"{self.base_url}/api/v1/users",
+            f"{self.base_url}/internal/v1/users/registration-profile",
             json={"email": email, "username": username},
             headers=self._headers(request_id),
         )
@@ -32,15 +33,30 @@ class HttpUserProfileClient:
         request_id: str | None = None,
     ) -> None:
         response = await self.client.delete(
-            f"{self.base_url}/api/v1/users/{user_id}",
+            f"{self.base_url}/internal/v1/users/{user_id}",
             headers=self._headers(request_id),
         )
         if response.status_code in (204, 404):
             return
         self._raise_downstream_error(response, "failed to delete user profile")
 
+    async def activate_user(
+        self,
+        user_id: UUID,
+        *,
+        request_id: str | None = None,
+    ) -> dict[str, object]:
+        response = await self.client.post(
+            f"{self.base_url}/internal/v1/users/{user_id}/activate",
+            headers=self._headers(request_id),
+        )
+        return self._json_or_error(response, "failed to activate user profile")
+
     def _headers(self, request_id: str | None) -> dict[str, str]:
-        return {REQUEST_ID_HEADER: request_id} if request_id else {}
+        headers = {"X-Internal-Token": self.internal_token}
+        if request_id:
+            headers[REQUEST_ID_HEADER] = request_id
+        return headers
 
     def _json_or_error(
         self,
