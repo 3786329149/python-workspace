@@ -102,3 +102,74 @@ def normalize_optional(value: str | None) -> str | None:
 
     normalized = value.strip()
     return normalized or None
+
+
+@dataclass(slots=True)
+class Role:
+    id: UUID
+    tenant_id: UUID
+    name: str
+    role_key: str
+    data_scope: int
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime | None = None
+
+    @classmethod
+    def create(
+        cls,
+        tenant_id: UUID,
+        name: str,
+        role_key: str,
+        data_scope: int = 1,
+    ) -> "Role":
+        now = datetime.now(UTC)
+        return cls(
+            id=uuid4(),
+            tenant_id=tenant_id,
+            name=name,
+            role_key=role_key,
+            data_scope=data_scope,
+            created_at=now,
+            updated_at=now,
+        )
+
+
+@dataclass(slots=True)
+class Menu:
+    id: UUID
+    parent_id: UUID | None
+    menu_name: str
+    menu_type: str
+    path: str | None
+    perms: str | None
+    icon: str | None
+    order_num: int
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime | None = None
+
+    @classmethod
+    def create(
+        cls,
+        menu_name: str,
+        menu_type: str,
+        parent_id: UUID | None = None,
+        path: str | None = None,
+        perms: str | None = None,
+        icon: str | None = None,
+        order_num: int = 0,
+    ) -> "Menu":
+        now = datetime.now(UTC)
+        return cls(
+            id=uuid4(),
+            parent_id=parent_id,
+            menu_name=menu_name,
+            menu_type=menu_type,
+            path=path,
+            perms=perms,
+            icon=icon,
+            order_num=order_num,
+            created_at=now,
+            updated_at=now,
+        )
