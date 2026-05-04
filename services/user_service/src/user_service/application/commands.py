@@ -24,3 +24,9 @@ class UpdateUserProfileCommand:
 @dataclass(frozen=True, slots=True)
 class UserIdCommand:
     user_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class CreateRegistrationProfileCommand:
+    email: str
+    username: str | None = None

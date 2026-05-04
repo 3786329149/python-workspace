@@ -8,6 +8,7 @@ from common.responses import register_common_handlers
 from fastapi import FastAPI
 
 from user_service.api.v1.router import router as v1_router
+from user_service.api.internal.v1.router import router as internal_v1_router
 from user_service.config import settings
 
 logger = get_logger(__name__)
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
     register_common_handlers(app)
     app.include_router(v1_router, prefix="/api/v1")
+    app.include_router(internal_v1_router, prefix="/internal/v1")
 
     @app.get("/")
     def read_root() -> dict[str, str]:

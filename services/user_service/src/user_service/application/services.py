@@ -2,13 +2,14 @@ from uuid import UUID
 
 from user_service.application.cache import UserCache
 from user_service.application.commands import (
+    CreateRegistrationProfileCommand,
     CreateUserCommand,
     UpdateUserProfileCommand,
     UserIdCommand,
 )
 from user_service.application.unit_of_work import UserUnitOfWork
 from user_service.domain.errors import UserAlreadyExists, UserNotFound
-from user_service.domain.models import User, normalize_email, normalize_optional
+from user_service.domain.models import User, UserStatus, normalize_email, normalize_optional
 
 
 class UserApplicationService:
@@ -39,6 +40,27 @@ class UserApplicationService:
                 avatar_url=command.avatar_url,
                 is_admin=command.is_admin,
                 dept_id=command.dept_id,
+            )
+            await self.uow.users.add(user)
+            await self.uow.commit()
+
+        await self._set_cache(user)
+        return user
+
+    async def create_registration_profile(self, command: CreateRegistrationProfileCommand) -> User:
+        email = normalize_email(command.email)
+        username = normalize_optional(command.username)
+
+        async with self.uow:
+            if await self.uow.users.get_by_email(email):
+                raise UserAlreadyExists("email already exists")
+            if username and await self.uow.users.get_by_username(username):
+                raise UserAlreadyExists("username already exists")
+
+            user = User.create(
+                email=email,
+                username=username,
+                status=UserStatus.PENDING,
             )
             await self.uow.users.add(user)
             await self.uow.commit()
@@ -92,6 +114,19 @@ class UserApplicationService:
                     raise UserAlreadyExists("phone already exists")
 
             user.update_profile(changes)
+            await self.uow.users.save(user)
+            await self.uow.commit()
+
+        await self._delete_cache(user.id)
+        return user
+
+    async def activate_user(self, command: UserIdCommand) -> User:
+        async with self.uow:
+            user = await self.uow.users.get_by_id(command.user_id)
+            if user is None:
+                raise UserNotFound("user not found")
+
+            user.activate()
             await self.uow.users.save(user)
             await self.uow.commit()
 

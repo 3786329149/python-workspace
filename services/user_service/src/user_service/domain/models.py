@@ -40,6 +40,7 @@ class User:
         avatar_url: str | None = None,
         is_admin: bool = False,
         dept_id: UUID | None = None,
+        status: UserStatus = UserStatus.ACTIVE,
     ) -> "User":
         now = datetime.now(UTC)
         return cls(
@@ -50,7 +51,7 @@ class User:
             nickname=normalize_optional(nickname or display_name),
             phone=normalize_optional(phone),
             avatar_url=normalize_optional(avatar_url),
-            status=UserStatus.ACTIVE,
+            status=status,
             is_admin=is_admin,
             dept_id=dept_id,
             created_at=now,
@@ -67,6 +68,13 @@ class User:
         self.touch()
 
     def enable(self) -> None:
+        self.status = UserStatus.ACTIVE
+        self.deleted_at = None
+        self.touch()
+
+    def activate(self) -> None:
+        if self.status not in (UserStatus.PENDING, UserStatus.DISABLED):
+            raise ValueError(f"cannot activate user from status {self.status}")
         self.status = UserStatus.ACTIVE
         self.deleted_at = None
         self.touch()
