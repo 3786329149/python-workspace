@@ -29,9 +29,13 @@ from auth_service.application.idempotency import (
     AuthRegistrationCompensationFailedError,
 )
 from auth_service.application.refresh_tokens import RefreshTokenStore, RefreshTokenSession
+from auth_service.application.login_limiter import LoginAttemptLimiter
 from auth_service.application.unit_of_work import AuthUnitOfWork
 from auth_service.application.user_profiles import UserProfileClient
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AuthApplicationService:
     def __init__(
@@ -40,6 +44,7 @@ class AuthApplicationService:
         user_profiles: UserProfileClient | None = None,
         redis: Redis | None = None,
         refresh_tokens: RefreshTokenStore | None = None,
+        login_limiter: LoginAttemptLimiter | None = None,
         *,
         jwt_secret_key: str = "dev-secret-change-me-with-at-least-32-bytes",
         jwt_algorithm: str = "HS256",
@@ -50,6 +55,7 @@ class AuthApplicationService:
         self.user_profiles = user_profiles
         self.idempotency_manager = RegistrationIdempotencyManager(redis) if redis else None
         self.refresh_tokens = refresh_tokens
+        self.login_limiter = login_limiter
         self.jwt_secret_key = jwt_secret_key
         self.jwt_algorithm = jwt_algorithm
         self.access_token_expire_minutes = access_token_expire_minutes
@@ -130,7 +136,10 @@ class AuthApplicationService:
         await idem_mgr.save_state(idempotency_key, IdempotencyState(status="completed", payload_hash=payload_hash, response=response))
         return response
 
-    async def login(self, command: LoginCommand) -> dict[str, str | int]:
+    async def login(self, command: LoginCommand, *, client_ip: str | None = None) -> dict[str, str | int]:
+        if self.login_limiter and client_ip:
+            await self.login_limiter.check_limits(command.username, client_ip)
+
         async with self.uow:
             auth = await self.uow.auths.get_by_identifier(
                 IdentityType.PASSWORD,
@@ -138,6 +147,9 @@ class AuthApplicationService:
             )
 
         if auth is None or not auth.credential:
+            if self.login_limiter and client_ip:
+                await self.login_limiter.record_failure(command.username, client_ip)
+            logger.warning(f"Login failed: invalid credentials (user not found). username={command.username} ip={client_ip}")
             raise AuthInvalidCredentials()
 
         try:
@@ -146,9 +158,21 @@ class AuthApplicationService:
                 auth.credential.encode("utf-8"),
             )
         except ValueError as exc:
+            if self.login_limiter and client_ip:
+                await self.login_limiter.record_failure(command.username, client_ip)
+            logger.warning(f"Login failed: invalid credentials (value error). username={command.username} ip={client_ip}")
             raise AuthInvalidCredentials() from exc
+            
         if not password_matches:
+            if self.login_limiter and client_ip:
+                await self.login_limiter.record_failure(command.username, client_ip)
+            logger.warning(f"Login failed: invalid password. username={command.username} ip={client_ip}")
             raise AuthInvalidCredentials()
+
+        if self.login_limiter and client_ip:
+            await self.login_limiter.clear_failures(command.username)
+
+        logger.info(f"Login successful. username={command.username} ip={client_ip}")
 
         return await self._issue_tokens(auth.user_id)
 

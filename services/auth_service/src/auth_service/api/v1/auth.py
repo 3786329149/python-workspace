@@ -44,9 +44,14 @@ async def register(
 @router.post("/login", response_model=TokenResponse)
 async def login(
     payload: LoginRequest,
+    request: Request,
     service: AuthApplicationService = Depends(get_auth_service),
 ) -> TokenResponse:
-    data = await service.login(LoginCommand(**payload.model_dump()))
+    client_ip = request.headers.get("x-forwarded-for", "")
+    if not client_ip and request.client:
+        client_ip = request.client.host
+    client_ip = client_ip.split(",")[0].strip() if client_ip else "unknown"
+    data = await service.login(LoginCommand(**payload.model_dump()), client_ip=client_ip)
     return TokenResponse(**data)
 
 

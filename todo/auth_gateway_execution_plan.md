@@ -149,9 +149,9 @@ feat(user): 完善当前用户上下文闭环
 接口调整：
 
 - auth-service:
-  - [ ] `POST /api/v1/auth/refresh`
-  - [ ] `POST /api/v1/auth/logout`
-  - [ ] `POST /api/v1/auth/logout-all`
+  - [x] `POST /api/v1/auth/refresh`
+  - [x] `POST /api/v1/auth/logout`
+  - [x] `POST /api/v1/auth/logout-all`
 
 Redis key 设计：
 
@@ -162,30 +162,30 @@ auth:user-refresh:{user_id} -> set(jti)
 
 实现任务：
 
-- [ ] common security `create_jwt_token` 支持传入或生成 `jti`。
-- [ ] auth-service 新增 RefreshTokenStore protocol。
-- [ ] auth-service 新增 RedisRefreshTokenStore。
-- [ ] login 签发 refresh token 时写入 Redis。
-- [ ] refresh 时校验 JWT、校验 Redis session、轮换 refresh token。
-- [ ] logout 吊销当前 refresh token。
-- [ ] logout-all 吊销当前用户所有 refresh token。
-- [ ] 配置项：
+- [x] common security `create_jwt_token` 支持传入或生成 `jti`。
+- [x] auth-service 新增 RefreshTokenStore protocol。
+- [x] auth-service 新增 RedisRefreshTokenStore。
+- [x] login 签发 refresh token 时写入 Redis。
+- [x] refresh 时校验 JWT、校验 Redis session、轮换 refresh token。
+- [x] logout 吊销当前 refresh token。
+- [x] logout-all 吊销当前用户所有 refresh token。
+- [x] 配置项：
   - `REFRESH_TOKEN_EXPIRE_DAYS`
   - `REFRESH_TOKEN_ROTATION_ENABLED=true`
 
 测试：
 
-- [ ] login 后 Redis 存在 refresh jti。
-- [ ] refresh 成功后旧 jti 失效，新 jti 有效。
-- [ ] 使用旧 refresh token 再刷新返回 401。
-- [ ] logout 后 refresh token 不可用。
-- [ ] logout-all 后用户所有 refresh token 不可用。
+- [x] login 后 Redis 存在 refresh jti。
+- [x] refresh 成功后旧 jti 失效，新 jti 有效。
+- [x] 使用旧 refresh token 再刷新返回 401。
+- [x] logout 后 refresh token 不可用。
+- [x] logout-all 后用户所有 refresh token 不可用。
 
 验收标准：
 
-- [ ] 可以单设备登出。
-- [ ] 可以全设备登出。
-- [ ] refresh token 泄露后具备服务端吊销能力。
+- [x] 可以单设备登出。
+- [x] 可以全设备登出。
+- [x] refresh token 泄露后具备服务端吊销能力。
 
 ### Phase 3: 登录安全与风控基础
 
@@ -210,26 +210,26 @@ LOGIN_LOCK_SECONDS=900
 
 实现任务：
 
-- [ ] auth-service 新增 LoginAttemptLimiter protocol。
-- [ ] auth-service 新增 RedisLoginAttemptLimiter。
-- [ ] 登录前检查 username/IP 是否被锁定。
-- [ ] 登录失败记录计数。
-- [ ] 登录成功清理该 username 的失败计数。
-- [ ] API 层从 request 获取客户端 IP，传给 application service。
-- [ ] 日志记录登录成功/失败，禁止记录密码和 token。
+- [x] auth-service 新增 LoginAttemptLimiter protocol。
+- [x] auth-service 新增 RedisLoginAttemptLimiter。
+- [x] 登录前检查 username/IP 是否被锁定。
+- [x] 登录失败记录计数。
+- [x] 登录成功清理该 username 的失败计数。
+- [x] API 层从 request 获取客户端 IP，传给 application service。
+- [x] 日志记录登录成功/失败，禁止记录密码和 token。
 
 测试：
 
-- [ ] 同 username 连续失败超过阈值后返回 429 或 423，统一选 `429`。
-- [ ] 同 IP 失败超过阈值后被限制。
-- [ ] 成功登录会清理 username 失败计数。
-- [ ] 不存在用户和密码错误返回相同错误码。
+- [x] 同 username 连续失败超过阈值后返回 429 或 423，统一选 `429`。
+- [x] 同 IP 失败超过阈值后被限制。
+- [x] 成功登录会清理 username 失败计数。
+- [x] 不存在用户和密码错误返回相同错误码。
 
 验收标准：
 
-- [ ] 暴力破解有基础阻断。
-- [ ] 不泄露用户是否存在。
-- [ ] 关键登录事件可通过 request_id 排查。
+- [x] 暴力破解有基础阻断。
+- [x] 不泄露用户是否存在。
+- [x] 关键登录事件可通过 request_id 排查。
 
 ### Phase 4: 内部通信安全与配置校验
 

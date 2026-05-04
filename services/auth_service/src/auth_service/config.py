@@ -28,6 +28,10 @@ class AuthServiceConfig(
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    LOGIN_FAILURE_WINDOW_SECONDS: int = 900
+    LOGIN_FAILURE_MAX_BY_USERNAME: int = 5
+    LOGIN_FAILURE_MAX_BY_IP: int = 30
+    LOGIN_LOCK_SECONDS: int = 900
 
     model_config = SettingsConfigDict(
         env_file=SERVICE_ENV_FILE,

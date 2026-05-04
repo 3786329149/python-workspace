@@ -3,6 +3,7 @@ from auth_service.application.services import AuthApplicationService
 from auth_service.infrastructure.db.unit_of_work import SqlAlchemyAuthUnitOfWork
 from auth_service.infrastructure.http_user_profiles import HttpUserProfileClient
 from auth_service.infrastructure.cache.refresh_tokens import RedisRefreshTokenStore
+from auth_service.infrastructure.cache.login_limiter import RedisLoginAttemptLimiter
 from auth_service.config import settings
 
 def get_auth_service(request: Request) -> AuthApplicationService:
@@ -13,11 +14,19 @@ def get_auth_service(request: Request) -> AuthApplicationService:
         settings.INTERNAL_API_TOKEN,
     )
     refresh_tokens = RedisRefreshTokenStore(request.app.state.redis)
+    login_limiter = RedisLoginAttemptLimiter(
+        request.app.state.redis,
+        window_seconds=settings.LOGIN_FAILURE_WINDOW_SECONDS,
+        max_by_username=settings.LOGIN_FAILURE_MAX_BY_USERNAME,
+        max_by_ip=settings.LOGIN_FAILURE_MAX_BY_IP,
+        lock_seconds=settings.LOGIN_LOCK_SECONDS,
+    )
     return AuthApplicationService(
         uow,
         user_profiles,
         request.app.state.redis,
         refresh_tokens=refresh_tokens,
+        login_limiter=login_limiter,
         jwt_secret_key=settings.JWT_SECRET_KEY,
         jwt_algorithm=settings.JWT_ALGORITHM,
         access_token_expire_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
