@@ -51,6 +51,25 @@ class RedisUserCache:
     def _user_key(self, user_id: UUID) -> str:
         return f"user:{user_id}"
 
+    def _permission_key(self, user_id: UUID) -> str:
+        return f"permission:user:{user_id}"
+
+    async def get_permissions(self, user_id: UUID) -> list[str] | None:
+        raw = await self.redis.get(self._permission_key(user_id))
+        if raw is None:
+            return None
+        return json.loads(raw)
+
+    async def set_permissions(self, user_id: UUID, perms: list[str], *, ttl: int = 300) -> None:
+        await self.redis.setex(
+            self._permission_key(user_id),
+            ttl,
+            json.dumps(perms),
+        )
+
+    async def delete_permissions(self, user_id: UUID) -> None:
+        await self.redis.delete(self._permission_key(user_id))
+
     def _serialize(self, user: User) -> dict[str, str | None]:
         return {
             "id": str(user.id),

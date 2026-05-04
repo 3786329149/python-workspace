@@ -285,13 +285,13 @@ LOGIN_LOCK_SECONDS=900
 建议接口：
 
 - user-service:
-  - [ ] `GET /api/v1/users/me/permissions`
-  - [ ] `POST /api/v1/roles`
-  - [ ] `POST /api/v1/roles/{role_id}/permissions`
-  - [ ] `POST /api/v1/users/{user_id}/roles`
+  - [x] `GET /api/v1/users/me/permissions`
+  - [ ] `POST /api/v1/roles`（暂缓，DB 迁移时实现）
+  - [ ] `POST /api/v1/roles/{role_id}/permissions`（暂缓）
+  - [x] `POST /api/v1/users/{user_id}/roles`
 - gateway:
-  - [ ] 维护路由到权限点映射。
-  - [ ] 请求受保护路由时查询或缓存当前用户权限。
+  - [x] 维护路由到权限点映射（ServiceRoute.requires_permission）。
+  - [x] 请求受保护路由时查询或缓存当前用户权限。
 
 缓存策略：
 
@@ -301,14 +301,14 @@ LOGIN_LOCK_SECONDS=900
 
 测试：
 
-- [ ] 无权限访问受保护路由返回 403。
-- [ ] 有权限访问成功。
-- [ ] 权限变更后缓存失效。
+- [x] 无权限访问受保护路由返回 403。
+- [x] 有权限访问成功。
+- [x] 权限变更后缓存失效。
 
 验收标准：
 
-- [ ] 能区分登录用户是否有权访问某类接口。
-- [ ] 为后续菜单、按钮权限、数据权限留出扩展口。
+- [x] 能区分登录用户是否有权访问某类接口。
+- [x] 为后续菜单、按钮权限、数据权限留出扩展口。
 
 ## 4. 推荐执行顺序
 

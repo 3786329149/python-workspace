@@ -3,7 +3,11 @@ from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from user_service.infrastructure.db.repositories import SqlAlchemyUserRepository
+from user_service.infrastructure.db.repositories import (
+    SqlAlchemyMenuRepository,
+    SqlAlchemyRoleRepository,
+    SqlAlchemyUserRepository,
+)
 
 
 class SqlAlchemyUnitOfWork:
@@ -11,10 +15,14 @@ class SqlAlchemyUnitOfWork:
         self.session_factory = session_factory
         self.session: AsyncSession | None = None
         self.users: SqlAlchemyUserRepository
+        self.roles: SqlAlchemyRoleRepository
+        self.menus: SqlAlchemyMenuRepository
 
     async def __aenter__(self) -> Self:
         self.session = self.session_factory()
         self.users = SqlAlchemyUserRepository(self.session)
+        self.roles = SqlAlchemyRoleRepository(self.session)
+        self.menus = SqlAlchemyMenuRepository(self.session)
         return self
 
     async def __aexit__(

@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from user_service.application.cache import UserCache
 from user_service.application.commands import (
     CreateRegistrationProfileCommand,
@@ -9,13 +7,46 @@ from user_service.application.commands import (
 )
 from user_service.application.unit_of_work import UserUnitOfWork
 from user_service.domain.errors import UserAlreadyExists, UserNotFound
-from user_service.domain.models import User, UserStatus, normalize_email, normalize_optional
+from user_service.domain.models import Role, User, UserStatus, normalize_email, normalize_optional
+
+PERMISSION_CACHE_TTL = 300  # 5 minutes
 
 
 class UserApplicationService:
     def __init__(self, uow: UserUnitOfWork, cache: UserCache | None = None) -> None:
         self.uow = uow
         self.cache = cache
+
+    async def get_user_permissions(self, user_id: UUID) -> list[str]:
+        """Get unique permission keys for a user (non-null perms from menus, type=F).
+        Checks Redis first; falls back to DB and caches the result."""
+        cached = await self._get_permission_cache(user_id)
+        if cached is not None:
+            return cached
+
+        async with self.uow:
+            menus = await self.uow.menus.get_by_user_id(user_id)
+
+        perms = sorted(
+            {m.perms for m in menus if m.perms and m.menu_type == "F"}
+        )
+        await self._set_permission_cache(user_id, perms)
+        return perms
+
+    async def assign_role_to_user(self, user_id: UUID, role_id: UUID) -> None:
+        """Assign a role to a user and invalidate the user's permission cache."""
+        async with self.uow:
+            user = await self.uow.users.get_by_id(user_id)
+            if user is None:
+                raise UserNotFound("user not found")
+            role = await self.uow.roles.get_by_id(role_id)
+            if role is None:
+                from common.errors import AppError
+                raise AppError("role not found", code="ROLE_NOT_FOUND", status_code=404)
+            await self.uow.roles.assign_role_to_user(user_id, role_id)
+            await self.uow.commit()
+
+        await self._delete_permission_cache(user_id)
 
     async def create_user(self, command: CreateUserCommand) -> User:
         email = normalize_email(command.email)
@@ -189,5 +220,29 @@ class UserApplicationService:
             return
         try:
             await self.cache.delete_user(user_id)
+        except Exception:
+            return
+
+    async def _get_permission_cache(self, user_id: UUID) -> list[str] | None:
+        if self.cache is None:
+            return None
+        try:
+            return await self.cache.get_permissions(user_id)
+        except Exception:
+            return None
+
+    async def _set_permission_cache(self, user_id: UUID, perms: list[str]) -> None:
+        if self.cache is None:
+            return
+        try:
+            await self.cache.set_permissions(user_id, perms, ttl=PERMISSION_CACHE_TTL)
+        except Exception:
+            return
+
+    async def _delete_permission_cache(self, user_id: UUID) -> None:
+        if self.cache is None:
+            return
+        try:
+            await self.cache.delete_permissions(user_id)
         except Exception:
             return

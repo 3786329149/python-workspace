@@ -3,8 +3,14 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from user_service.domain.models import User, UserStatus, normalize_email
-from user_service.infrastructure.db.models import UserRecord
+from user_service.domain.models import Menu, Role, User, UserStatus, normalize_email
+from user_service.infrastructure.db.models import (
+    MenuRecord,
+    RoleRecord,
+    UserRecord,
+    role_menus,
+    user_roles,
+)
 
 
 class SqlAlchemyUserRepository:
@@ -47,19 +53,52 @@ class SqlAlchemyUserRepository:
         record = result.scalar_one_or_none()
         return record.to_domain() if record else None
 
-from sqlalchemy import join
-from user_service.domain.models import Role, Menu
-from user_service.infrastructure.db.models import RoleRecord, MenuRecord, user_roles, role_menus
 
 class SqlAlchemyRoleRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def add(self, role: Role) -> None:
+        record = RoleRecord(
+            id=role.id,
+            tenant_id=role.tenant_id,
+            name=role.name,
+            role_key=role.role_key,
+            data_scope=role.data_scope,
+            created_at=role.created_at,
+            updated_at=role.updated_at,
+        )
+        self.session.add(record)
+
+    async def get_by_id(self, role_id: UUID) -> Role | None:
+        record = await self.session.get(RoleRecord, role_id)
+        if record is None or record.deleted_at is not None:
+            return None
+        return self._to_domain(record)
+
     async def get_by_user_id(self, user_id: UUID) -> list[Role]:
-        stmt = select(RoleRecord).join(user_roles, user_roles.c.role_id == RoleRecord.id).where(user_roles.c.user_id == user_id, RoleRecord.deleted_at.is_(None))
+        stmt = (
+            select(RoleRecord)
+            .join(user_roles, user_roles.c.role_id == RoleRecord.id)
+            .where(user_roles.c.user_id == user_id, RoleRecord.deleted_at.is_(None))
+        )
         result = await self.session.execute(stmt)
-        records = result.scalars().all()
-        return [Role(
+        return [self._to_domain(r) for r in result.scalars().all()]
+
+    async def get_by_tenant_id(self, tenant_id: UUID) -> list[Role]:
+        stmt = select(RoleRecord).where(
+            RoleRecord.tenant_id == tenant_id, RoleRecord.deleted_at.is_(None)
+        )
+        result = await self.session.execute(stmt)
+        return [self._to_domain(r) for r in result.scalars().all()]
+
+    async def assign_role_to_user(self, user_id: UUID, role_id: UUID) -> None:
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        stmt = pg_insert(user_roles).values(user_id=user_id, role_id=role_id).on_conflict_do_nothing()
+        await self.session.execute(stmt)
+
+    def _to_domain(self, r: RoleRecord) -> Role:
+        return Role(
             id=r.id,
             tenant_id=r.tenant_id,
             name=r.name,
@@ -68,17 +107,39 @@ class SqlAlchemyRoleRepository:
             created_at=r.created_at,
             updated_at=r.updated_at,
             deleted_at=r.deleted_at,
-        ) for r in records]
+        )
+
 
 class SqlAlchemyMenuRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def get_by_user_id(self, user_id: UUID) -> list[Menu]:
-        stmt = select(MenuRecord).join(role_menus, role_menus.c.menu_id == MenuRecord.id).join(user_roles, user_roles.c.role_id == role_menus.c.role_id).where(user_roles.c.user_id == user_id, MenuRecord.deleted_at.is_(None))
+    async def get_by_role_id(self, role_id: UUID) -> list[Menu]:
+        stmt = (
+            select(MenuRecord)
+            .join(role_menus, role_menus.c.menu_id == MenuRecord.id)
+            .where(role_menus.c.role_id == role_id, MenuRecord.deleted_at.is_(None))
+        )
         result = await self.session.execute(stmt)
-        records = result.scalars().all()
-        return [Menu(
+        return [self._to_domain(r) for r in result.scalars().all()]
+
+    async def get_by_user_id(self, user_id: UUID) -> list[Menu]:
+        stmt = (
+            select(MenuRecord)
+            .join(role_menus, role_menus.c.menu_id == MenuRecord.id)
+            .join(user_roles, user_roles.c.role_id == role_menus.c.role_id)
+            .where(user_roles.c.user_id == user_id, MenuRecord.deleted_at.is_(None))
+        )
+        result = await self.session.execute(stmt)
+        return [self._to_domain(r) for r in result.scalars().all()]
+
+    async def assign_menu_to_role(self, role_id: UUID, menu_id: UUID) -> None:
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        stmt = pg_insert(role_menus).values(role_id=role_id, menu_id=menu_id).on_conflict_do_nothing()
+        await self.session.execute(stmt)
+
+    def _to_domain(self, r: MenuRecord) -> Menu:
+        return Menu(
             id=r.id,
             parent_id=r.parent_id,
             menu_name=r.menu_name,
@@ -90,4 +151,4 @@ class SqlAlchemyMenuRepository:
             created_at=r.created_at,
             updated_at=r.updated_at,
             deleted_at=r.deleted_at,
-        ) for r in records]
+        )

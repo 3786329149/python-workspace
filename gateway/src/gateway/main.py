@@ -3,8 +3,9 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
-from common.responses import register_common_handlers
 from common.logger import configure_logging
+from common.redis import create_redis_client
+from common.responses import register_common_handlers
 from gateway.config import settings
 from gateway.api.v1.proxy import router as proxy_router
 from gateway.core.auth import register_auth_middleware
@@ -17,7 +18,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(settings.PROXY_TIMEOUT_SECONDS)
     )
+    redis_client = create_redis_client(settings)
     app.state.http_client = http_client
+    app.state.redis = redis_client
     app.state.rate_limiter = InMemoryRateLimiter(
         requests=settings.RATE_LIMIT_REQUESTS,
         window_seconds=settings.RATE_LIMIT_WINDOW_SECONDS,
@@ -32,6 +35,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         await http_client.aclose()
+        await redis_client.aclose()
 
 
 def create_app() -> FastAPI:

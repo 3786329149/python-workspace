@@ -6,6 +6,7 @@ from fastapi import HTTPException, Request, Response, status
 from common.responses import REQUEST_ID_HEADER
 from gateway.config import settings
 from gateway.core.circuit_breaker import CircuitOpen
+from gateway.core.permissions import require_permission
 from gateway.core.rate_limit import RateLimitExceeded
 from gateway.core.routes import ServiceRoute
 
@@ -30,6 +31,10 @@ async def proxy_request(
 ) -> Response:
     await _enforce_rate_limit(request, service_route)
     await _ensure_circuit_allows(request, service_route)
+
+    # RBAC: enforce per-route permission check if configured
+    if service_route.requires_permission:
+        await require_permission(request, service_route.requires_permission)
 
     try:
         upstream = await request.app.state.http_client.request(

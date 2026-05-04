@@ -1,14 +1,14 @@
 from functools import lru_cache
 from typing import ClassVar
 
-from common.config import BaseServiceConfig, find_service_env_file
+from common.config import BaseServiceConfig, RedisConfigMixin, find_service_env_file
 from pydantic_settings import SettingsConfigDict
 from pydantic import model_validator
 
 SERVICE_ENV_FILE = find_service_env_file("gateway")
 
 
-class GatewayConfig(BaseServiceConfig):
+class GatewayConfig(RedisConfigMixin, BaseServiceConfig):
     DEFAULT_SERVICE_PORT: ClassVar[int] = 5600
 
     PROJECT_NAME: str = "api-gateway"

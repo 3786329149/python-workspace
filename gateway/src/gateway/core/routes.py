@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Sequence
 
 from gateway.config import settings
 
@@ -9,6 +10,9 @@ class ServiceRoute:
     base_url: str
     upstream_prefix: str
     requires_internal_token: bool = False
+    # Optional permission key that the authenticated user must hold.
+    # e.g. "user:list"  None means no permission check beyond authentication.
+    requires_permission: str | None = None
 
 
 AUTH_ROUTE = ServiceRoute(
