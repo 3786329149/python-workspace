@@ -1,10 +1,10 @@
 from uuid import UUID
 
 from common.database import SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin, TenantMixin
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, Text, Uuid
+from sqlalchemy import JSON, Boolean, Column, ForeignKey, Integer, String, Table, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
-from user_service.domain.models import User, UserStatus
+from user_service.domain.models import User, UserStatus, Tenant, TenantStatus
 from user_service.infrastructure.db.base import Base
 
 
@@ -137,4 +137,47 @@ class AuditLogRecord(UUIDPrimaryKeyMixin, TimestampMixin, TenantMixin, Base):
     details: Mapped[str | None] = mapped_column(Text, comment="操作详情(JSON)")
     ip_address: Mapped[str | None] = mapped_column(String(45), comment="操作IP")
     status: Mapped[str] = mapped_column(String(20), default="success", comment="操作状态")
+
+
+class TenantRecord(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
+    """租户表"""
+    __tablename__ = "tenants"
+
+    name: Mapped[str] = mapped_column(String(100), comment="租户名称")
+    tenant_key: Mapped[str] = mapped_column(String(50), unique=True, index=True, comment="租户唯一标识符")
+    status: Mapped[str] = mapped_column(String(20), default="active", index=True, comment="状态")
+    contact_person: Mapped[str | None] = mapped_column(String(64), comment="联系人")
+    contact_phone: Mapped[str | None] = mapped_column(String(32), comment="联系电话")
+    config: Mapped[dict] = mapped_column(JSON, default={}, comment="租户配置JSON")
+
+    @classmethod
+    def from_domain(cls, tenant: Tenant) -> "TenantRecord":
+        record = cls(id=tenant.id)
+        record.apply(tenant)
+        return record
+
+    def apply(self, tenant: Tenant) -> None:
+        self.name = tenant.name
+        self.tenant_key = tenant.tenant_key
+        self.status = tenant.status.value
+        self.contact_person = tenant.contact_person
+        self.contact_phone = tenant.contact_phone
+        self.config = tenant.config
+        self.created_at = tenant.created_at
+        self.updated_at = tenant.updated_at
+        self.deleted_at = tenant.deleted_at
+
+    def to_domain(self) -> Tenant:
+        return Tenant(
+            id=self.id,
+            name=self.name,
+            tenant_key=self.tenant_key,
+            status=TenantStatus(self.status),
+            contact_person=self.contact_person,
+            contact_phone=self.contact_phone,
+            config=self.config,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            deleted_at=self.deleted_at,
+        )
 

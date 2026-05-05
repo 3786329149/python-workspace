@@ -54,11 +54,25 @@ MENUS = [
     {"menu_name": "编辑用户",       "perms": "user:edit"},
     {"menu_name": "删除用户",       "perms": "user:delete"},
     {"menu_name": "查看角色列表",   "perms": "role:list"},
+    {"menu_name": "创建角色",       "perms": "role:create"},
+    {"menu_name": "编辑角色",       "perms": "role:edit"},
+    {"menu_name": "删除角色",       "perms": "role:delete"},
     {"menu_name": "分配角色",       "perms": "role:assign"},
+    {"menu_name": "查看部门树",     "perms": "dept:list"},
+    {"menu_name": "创建部门",       "perms": "dept:create"},
+    {"menu_name": "编辑部门",       "perms": "dept:edit"},
+    {"menu_name": "删除部门",       "perms": "dept:delete"},
+    {"menu_name": "查看菜单",       "perms": "menu:list"},
+    {"menu_name": "编辑菜单",       "perms": "menu:edit"},
 ]
 
 # admin gets every permission; user gets read-only
-ADMIN_PERMS = {"user:list", "user:create", "user:edit", "user:delete", "role:list", "role:assign"}
+ADMIN_PERMS = {
+    "user:list", "user:create", "user:edit", "user:delete",
+    "role:list", "role:create", "role:edit", "role:delete", "role:assign",
+    "dept:list", "dept:create", "dept:edit", "dept:delete",
+    "menu:list", "menu:edit"
+}
 USER_PERMS  = {"user:list"}
 
 

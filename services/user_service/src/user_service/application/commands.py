@@ -86,3 +86,25 @@ class UpdateUserAdminCommand:
     status: str | None = None
     is_admin: bool | None = None
     dept_id: UUID | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CreateTenantCommand:
+    name: str
+    tenant_key: str
+    contact_person: str | None = None
+    contact_phone: str | None = None
+    config: dict | None = None
+    admin_username: str | None = None
+    admin_email: str | None = None
+    admin_password: str = "Pass1234"
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateTenantCommand:
+    tenant_id: UUID
+    name: str | None = None
+    status: str | None = None
+    contact_person: str | None = None
+    contact_phone: str | None = None
+    config: dict | None = None

@@ -22,6 +22,7 @@ class UserServiceConfig(
 
     PROJECT_NAME: str = "user-service"
     INTERNAL_API_TOKEN: str = ""
+    AUTH_SERVICE_URL: str = "http://127.0.0.1:5602"
 
     model_config = SettingsConfigDict(
         env_file=SERVICE_ENV_FILE,

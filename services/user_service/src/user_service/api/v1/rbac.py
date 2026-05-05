@@ -37,6 +37,10 @@ class AssignRoleRequest(BaseModel):
     role_id: UUID
 
 
+class BulkAssignRoleRequest(BaseModel):
+    role_ids: list[UUID]
+
+
 class CreateRoleRequest(BaseModel):
     tenant_id: UUID
     name: str = Field(..., min_length=1, max_length=50)
@@ -142,6 +146,22 @@ async def assign_role(
     request to ``/me/permissions`` reflects the new role.
     """
     await service.assign_role_to_user(user_id, payload.role_id, actor_id=current_user_id)
+
+
+@router.put(
+    "/{user_id}/roles",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Update user roles (bulk replacement)",
+    dependencies=[Depends(require_permission("role:assign"))],
+)
+async def update_user_roles(
+    user_id: UUID,
+    payload: BulkAssignRoleRequest,
+    current_user_id: UUID = Depends(get_current_user_id),
+    service: UserApplicationService = Depends(get_user_service),
+) -> None:
+    """Replace all roles for a user with a new set of role IDs."""
+    await service.update_user_roles(user_id, payload.role_ids, actor_id=current_user_id)
 
 
 @router.delete(

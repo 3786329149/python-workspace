@@ -36,10 +36,10 @@
 | 400 | `VALIDATION_ERROR` | 请求参数校验失败 |
 | 401 | `AUTH_REQUIRED` | 未携带 / 过期 token |
 | 401 | `TOKEN_INVALID` | token 签名错误或类型错误 |
-| 403 | `PERMISSION_DENIED` | 无访问权限 |
+| 403 | `USER_PERMISSION_DENIED` | 无访问权限 |
 | 404 | `NOT_FOUND` | 资源不存在 |
 | 409 | `CONFLICT` | 资源冲突（重复注册等） |
-| 422 | `UNPROCESSABLE_ENTITY` | 请求体格式错误 |
+| 422 | `VALIDATION_ERROR` | 请求体格式错误（含字段级详情） |
 | 429 | `RATE_LIMITED` | 请求过于频繁 |
 | 503 | `SERVICE_UNAVAILABLE` | 上游服务不可用 |
 
@@ -62,34 +62,14 @@ POST /api/v1/auth/register
 }
 ```
 
-**Headers（可选）**
-```
-Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
-```
-
 **Response 201**
 ```json
 {
-  "user_id": "018f1234-abcd-7000-8000-000000000001",
+  "user_id": "...",
   "email": "user@example.com",
   "username": "alice",
   "message": "registration successful"
 }
-```
-
-**错误**
-
-| HTTP | code | 触发条件 |
-|------|------|----------|
-| 409 | `USER_ALREADY_EXISTS` | email 或 username 已存在 |
-| 400 | `VALIDATION_ERROR` | 密码太短 / email 格式错误 |
-
-**cURL**
-```bash
-curl -X POST http://localhost:5600/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"email":"user@example.com","username":"alice","password":"Str0ng!Pass"}'
 ```
 
 ---
@@ -111,102 +91,20 @@ POST /api/v1/auth/login
 **Response 200**
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "access_token": "...",
+  "refresh_token": "...",
   "token_type": "bearer",
-  "expires_in": 1800
+  "expires_in": 86400
 }
 ```
 
-> `access_token` 有效期 **30 分钟**，`refresh_token` 有效期 **7 天**。
-> 前端应将 `refresh_token` 存储在 httpOnly Cookie 或安全存储中。
-
-**错误**
-
-| HTTP | code | 触发条件 |
-|------|------|----------|
-| 401 | `INVALID_CREDENTIALS` | 用户名或密码错误 |
-| 429 | `LOGIN_RATE_LIMITED` | 短时间内失败次数过多 |
-
-**cURL**
-```bash
-curl -X POST http://localhost:5600/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","password":"Str0ng!Pass"}'
-```
-
----
-
-### 3. 刷新 Token
-
-```
-POST /api/v1/auth/refresh
-```
-
-**Request**
-```json
-{
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-**Response 200** — 同登录，返回新的 `access_token` + `refresh_token`（旧 token 立即失效）
-
-**错误**
-
-| HTTP | code | 触发条件 |
-|------|------|----------|
-| 401 | `TOKEN_INVALID` | refresh_token 无效或已被吊销 |
-| 401 | `TOKEN_EXPIRED` | refresh_token 已过期 |
-
-**cURL**
-```bash
-curl -X POST http://localhost:5600/api/v1/auth/refresh \
-  -H "Content-Type: application/json" \
-  -d '{"refresh_token":"<your_refresh_token>"}'
-```
-
----
-
-### 4. 登出（单设备）
-
-```
-POST /api/v1/auth/logout
-Authorization: Bearer <access_token>
-```
-
-**Request**
-```json
-{
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-**Response 204** — No Content
-
----
-
-### 5. 全设备登出
-
-```
-POST /api/v1/auth/logout-all
-Authorization: Bearer <access_token>
-```
-
-**Request**
-```json
-{
-  "user_id": "018f1234-abcd-7000-8000-000000000001"
-}
-```
-
-**Response 204** — No Content
+> **注意**：开发环境下 `access_token` 有效期已延长至 **24 小时 (86400秒)**。
 
 ---
 
 ## 用户模块
 
-### 6. 获取当前用户信息
+### 3. 获取当前用户信息
 
 ```
 GET /api/v1/users/me
@@ -216,320 +114,82 @@ Authorization: Bearer <access_token>
 **Response 200**
 ```json
 {
-  "id": "018f1234-abcd-7000-8000-000000000001",
-  "tenant_id": null,
-  "email": "user@example.com",
+  "id": "...",
+  "tenant_id": "...",
   "username": "alice",
-  "display_name": null,
-  "nickname": null,
-  "phone": null,
-  "avatar_url": null,
-  "status": "active",
-  "is_admin": false,
-  "dept_id": null,
-  "created_at": "2026-05-04T02:00:00Z",
-  "updated_at": "2026-05-04T02:00:00Z",
-  "deleted_at": null
-}
-```
-
-**cURL**
-```bash
-curl http://localhost:5600/api/v1/users/me \
-  -H "Authorization: Bearer <access_token>"
-```
-
----
-
-### 6.1. 获取用户列表
-
-```
-GET /api/v1/users?tenant_id={tenant_id}
-Authorization: Bearer <access_token>
-```
-
-**Response 200**
-返回 `UserResponse` 数组（格式同 `GET /users/me`）。
-
----
-
-### 6.2. 获取单个用户详情
-
-```
-GET /api/v1/users/{user_id}
-Authorization: Bearer <access_token>
-```
-
-**Response 200**
-返回单个 `UserResponse` 对象。
-
----
-
-### 6.3. 删除用户
-
-```
-DELETE /api/v1/users/{user_id}
-Authorization: Bearer <access_token>
-```
-
-**Response 204** — No Content
-
----
-
-### 7. 更新用户资料
-
-```
-PATCH /api/v1/users/{user_id}
-Authorization: Bearer <access_token>
-```
-
-**Request**（只传需要修改的字段）
-```json
-{
-  "username": "alice_new",
   "nickname": "Alice",
-  "phone": "13800138000",
-  "avatar_url": "https://cdn.example.com/avatar.png"
+  "roles": ["admin"],
+  "permissions": ["user:list", "user:edit", ...],
+  "status": "active",
+  "is_admin": true,
+  "dept_id": "..."
 }
 ```
 
-**Response 200** — 返回更新后的用户对象（同 GET /users/me 格式）
+---
 
-**错误**
+### 4. 用户管理接口
 
-| HTTP | code | 触发条件 |
-|------|------|----------|
-| 409 | `USER_ALREADY_EXISTS` | username / phone 被其他用户占用 |
+| 方法 | 路径 | 权限要求 | 说明 |
+|------|------|----------|------|
+| GET | `/api/v1/users` | `user:list` | 获取用户列表（受数据范围过滤） |
+| GET | `/api/v1/users/{id}` | `user:list` | 获取单个用户详情（含角色与权限） |
+| PATCH | `/api/v1/users/{id}` | `user:edit` | 修改基础资料（昵称、头像等） |
+| PATCH | `/api/v1/users/{id}/admin` | `user:edit` | 修改核心属性（状态、部门、管理员标识） |
+| DELETE | `/api/v1/users/{id}` | `user:delete` | 软删除用户 |
 
 ---
 
-### 8. 获取当前用户权限列表
+## RBAC 角色与权限
 
+### 5. 角色管理
+
+| 方法 | 路径 | 权限要求 | 说明 |
+|------|------|----------|------|
+| GET | `/api/v1/roles` | `role:list` | 获取角色列表（含该角色下的权限点列表） |
+| POST | `/api/v1/roles` | `role:create` | 创建新角色（需指定 tenant_id） |
+| PATCH | `/api/v1/roles/{id}` | `role:edit` | 修改角色名称、标识或数据范围 |
+| PUT | `/api/v1/roles/{id}/permissions` | `role:edit` | **批量覆盖**角色的权限关联 (传 menu_ids) |
+| DELETE | `/api/v1/roles/{id}` | `role:delete` | 删除角色 |
+
+### 6. 用户角色分配
+
+#### 批量更新用户角色
 ```
-GET /api/v1/users/me/permissions
+PUT /api/v1/users/{user_id}/roles
 Authorization: Bearer <access_token>
 ```
-
-**Response 200**
+**Request Body**
 ```json
 {
-  "user_id": "018f1234-abcd-7000-8000-000000000001",
-  "permissions": [
-    "user:list",
-    "user:create",
-    "role:assign"
-  ]
+  "role_ids": ["uuid-1", "uuid-2"]
 }
 ```
-
-> 结果缓存 5 分钟，角色变更后立即失效。
-
-**cURL**
-```bash
-curl http://localhost:5600/api/v1/users/me/permissions \
-  -H "Authorization: Bearer <access_token>"
-```
+> 此操作会清除用户原有的所有角色，并分配新的角色列表。权限缓存会立即失效。
 
 ---
 
-### 8.1. 移除用户角色
+### 7. 菜单与权限树
 
-```
-DELETE /api/v1/users/{user_id}/roles/{role_id}
-Authorization: Bearer <access_token>
-```
+#### 获取扁平菜单列表
+`GET /api/v1/menus`
 
-**Response 204** — No Content
-
----
-
-## RBAC 模块
-
-### 9. 创建角色
-
-```
-POST /api/v1/roles
-Authorization: Bearer <access_token>
-```
-
-**Request**
-```json
-{
-  "tenant_id": "00000000-0000-0000-0000-000000000001",
-  "name": "编辑员",
-  "role_key": "editor",
-  "data_scope": 1
-}
-```
-
-> `data_scope` 枚举：`1` 全部数据 / `2` 本部门 / `3` 本人 / `4` 自定义部门
-
-**Response 201**
-```json
-{
-  "id": "8074df38-a50f-4b12-a39a-2d6289aca6e5",
-  "tenant_id": "00000000-0000-0000-0000-000000000001",
-  "name": "编辑员",
-  "role_key": "editor",
-  "data_scope": 1,
-  "created_at": "2026-05-04T02:00:00Z",
-  "updated_at": "2026-05-04T02:00:00Z"
-}
-```
-
-**错误**
-
-| HTTP | code | 触发条件 |
-|------|------|----------|
-| 409 | `ROLE_ALREADY_EXISTS` | 同租户下 role_key 重复 |
-
----
-
-### 9.1. 获取角色列表
-
-```
-GET /api/v1/roles?tenant_id={tenant_id}
-Authorization: Bearer <access_token>
-```
-
-**Response 200** — 返回角色对象数组
-
----
-
-### 9.2. 获取/修改/删除角色
-
-**获取角色详情**
-```
-GET /api/v1/roles/{role_id}
-Authorization: Bearer <access_token>
-```
-
-**修改角色**
-```
-PATCH /api/v1/roles/{role_id}
-Authorization: Bearer <access_token>
-```
-**Request:** `{ "name": "新名称", "role_key": "new_key", "data_scope": 2 }` (均为可选)
-
-**删除角色**
-```
-DELETE /api/v1/roles/{role_id}
-Authorization: Bearer <access_token>
-```
-
----
-
-### 10. 给角色绑定权限点
-
-```
-POST /api/v1/roles/{role_id}/permissions
-Authorization: Bearer <access_token>
-```
-
-**Request**
-```json
-{
-  "menu_id": "1fe024ae-4d24-4026-a27c-052a9167f656"
-}
-```
-
-**Response 204** — No Content
-
----
-
-### 11. 为用户分配角色
-
-```
-POST /api/v1/users/{user_id}/roles
-Authorization: Bearer <access_token>
-```
-
-**Request**
-```json
-{
-  "role_id": "8074df38-a50f-4b12-a39a-2d6289aca6e5"
-}
-```
-
-**Response 204** — No Content（同时清除该用户的权限缓存）
-
----
-
-### 11.1. 解绑角色权限点
-
-```
-DELETE /api/v1/roles/{role_id}/permissions/{menu_id}
-Authorization: Bearer <access_token>
-```
-
-**Response 204** — No Content
-
----
-
-### 11.2. 获取系统可用菜单/权限点
-
-```
-GET /api/v1/menus
-Authorization: Bearer <access_token>
-```
-
-**Response 200**
+#### 获取树状菜单结构
+`GET /api/v1/menus/tree`
+**Response**
 ```json
 [
   {
-    "id": "1fe024ae-4d24-4026-a27c-052a9167f656",
-    "parent_id": null,
-    "menu_name": "用户管理",
+    "id": "...",
+    "menu_name": "系统管理",
     "menu_type": "M",
-    "path": "/users",
-    "perms": null,
-    "icon": "user",
-    "order_num": 1,
-    "created_at": "2026-05-04T02:00:00Z",
-    "updated_at": "2026-05-04T02:00:00Z"
-  }
-]
-```
-
----
-
-## 部门模块
-
-### 12. 查询部门树
-
-```
-GET /api/v1/depts/tree?tenant_id={tenant_id}
-Authorization: Bearer <access_token>
-```
-
-**Response 200**
-```json
-[
-  {
-    "id": "aaaaaaaa-0000-0000-0000-000000000001",
-    "tenant_id": "00000000-0000-0000-0000-000000000001",
-    "name": "公司",
-    "parent_id": null,
-    "ancestors": "",
-    "order_num": 0,
-    "created_at": "2026-05-04T02:00:00Z",
-    "updated_at": "2026-05-04T02:00:00Z",
     "children": [
       {
-        "id": "bbbbbbbb-0000-0000-0000-000000000002",
-        "name": "技术部",
-        "parent_id": "aaaaaaaa-0000-0000-0000-000000000001",
-        "ancestors": "aaaaaaaa-0000-0000-0000-000000000001",
-        "order_num": 1,
-        "children": [
-          {
-            "id": "cccccccc-0000-0000-0000-000000000003",
-            "name": "后端组",
-            "parent_id": "bbbbbbbb-0000-0000-0000-000000000002",
-            "ancestors": "aaaaaaaa-...,bbbbbbbb-...",
-            "children": []
-          }
-        ]
+        "id": "...",
+        "menu_name": "用户管理",
+        "menu_type": "C",
+        "perms": "user:list",
+        "children": []
       }
     ]
   }
@@ -538,207 +198,67 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 12.1. 获取单个部门详情
+## 组织架构
+
+### 8. 部门树查询
 
 ```
-GET /api/v1/depts/{dept_id}
-Authorization: Bearer <access_token>
+GET /api/v1/depts/tree?tenant_id={tenant_id}
 ```
 
-**Response 200** — 返回包含 `ancestors` 字段的部门详情对象
+> **数据权限过滤**：非管理员用户查询时，系统会根据其角色的 `data_scope` 自动截断树结构，仅返回其有权访问的部门分支。
 
 ---
 
-### 13. 创建部门
+## 审计日志
+
+### 9. 获取审计日志
 
 ```
-POST /api/v1/depts
-Authorization: Bearer <access_token>
+GET /api/v1/users/audit_logs（需在网关配置路由）
+```
+> 目前审计日志已在后端 `audit_logs` 表记录，涵盖：分配角色、更新权限、禁用用户等敏感操作。
+
+---
+
+## 租户模块 (Platform Admin Only)
+
+### 10. 创建租户
+
+```
+POST /api/v1/tenants
+Authorization: Bearer <platform_admin_token>
 ```
 
 **Request**
 ```json
 {
-  "tenant_id": "00000000-0000-0000-0000-000000000001",
-  "name": "技术部",
-  "parent_id": "aaaaaaaa-0000-0000-0000-000000000001",
-  "order_num": 1
+  "name": "新客户公司",
+  "tenant_key": "new_corp",
+  "contact_person": "张三",
+  "contact_phone": "13800000000"
 }
 ```
-
-> `parent_id` 为 `null` 时创建根节点。
 
 **Response 201**
 ```json
 {
-  "id": "bbbbbbbb-0000-0000-0000-000000000002",
-  "tenant_id": "00000000-0000-0000-0000-000000000001",
-  "name": "技术部",
-  "parent_id": "aaaaaaaa-0000-0000-0000-000000000001",
-  "ancestors": "aaaaaaaa-0000-0000-0000-000000000001",
-  "order_num": 1,
-  "created_at": "2026-05-04T02:00:00Z",
-  "updated_at": "2026-05-04T02:00:00Z"
+  "id": "...",
+  "name": "新客户公司",
+  "tenant_key": "new_corp",
+  "status": "active",
+  "contact_person": "张三",
+  "contact_phone": "13800000000",
+  "config": {},
+  "created_at": "...",
+  "updated_at": "..."
 }
 ```
+> **注**：创建租户时，系统会自动初始化该租户的“总部”部门以及“管理员”、“普通员工”默认角色。
 
-**错误**
-
-| HTTP | code | 触发条件 |
-|------|------|----------|
-| 404 | `DEPT_PARENT_NOT_FOUND` | parent_id 不存在 |
-
----
-
-### 14. 修改部门
+### 11. 获取租户列表
 
 ```
-PATCH /api/v1/depts/{dept_id}
-Authorization: Bearer <access_token>
+GET /api/v1/tenants
+Authorization: Bearer <platform_admin_token>
 ```
-
-**Request**（只传需要修改的字段）
-```json
-{
-  "name": "工程部",
-  "order_num": 2
-}
-```
-
-**Response 200** — 返回更新后的部门对象
-
----
-
-### 15. 删除部门
-
-```
-DELETE /api/v1/depts/{dept_id}
-Authorization: Bearer <access_token>
-```
-
-**Response 204** — No Content（软删除）
-
-**错误**
-
-| HTTP | code | 触发条件 |
-|------|------|----------|
-| 404 | `DEPT_NOT_FOUND` | 部门不存在 |
-| 409 | `DEPT_HAS_CHILDREN` | 存在子部门，需先删除子部门 |
-
----
-
-## 前端集成建议
-
-### Token 管理策略
-
-```typescript
-// 推荐：access_token 存 memory，refresh_token 存 httpOnly Cookie
-// 简单场景：access_token 存 localStorage，注意 XSS 风险
-
-const ACCESS_KEY = 'access_token';
-
-function getToken(): string | null {
-  return localStorage.getItem(ACCESS_KEY);
-}
-
-function setTokens(access: string, refresh: string) {
-  localStorage.setItem(ACCESS_KEY, access);
-  // refresh_token 通过后端 Set-Cookie 设置更安全
-}
-```
-
-### Axios 拦截器（自动刷新）
-
-```typescript
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: 'http://localhost:5600',
-});
-
-// 请求拦截：注入 token
-api.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-// 响应拦截：401 自动刷新
-let refreshing = false;
-let queue: Array<() => void> = [];
-
-api.interceptors.response.use(
-  (res) => res,
-  async (error) => {
-    if (error.response?.status !== 401) return Promise.reject(error);
-
-    const original = error.config;
-    if (original._retry) {
-      // 二次 401，跳转登录
-      window.location.href = '/login';
-      return Promise.reject(error);
-    }
-    original._retry = true;
-
-    if (refreshing) {
-      return new Promise((resolve) => {
-        queue.push(() => resolve(api(original)));
-      });
-    }
-
-    refreshing = true;
-    try {
-      const refreshToken = localStorage.getItem('refresh_token');
-      const { data } = await axios.post('/api/v1/auth/refresh', {
-        refresh_token: refreshToken,
-      });
-      setTokens(data.access_token, data.refresh_token);
-      queue.forEach((fn) => fn());
-      queue = [];
-      return api(original);
-    } catch {
-      window.location.href = '/login';
-      return Promise.reject(error);
-    } finally {
-      refreshing = false;
-    }
-  }
-);
-
-export default api;
-```
-
-### 权限判断（前端组件层）
-
-```typescript
-// 从 GET /api/v1/users/me/permissions 获取并缓存到状态管理（如 pinia/zustand）
-const permissions = ref<string[]>([]);
-
-async function loadPermissions() {
-  const { data } = await api.get('/api/v1/users/me/permissions');
-  permissions.value = data.permissions;
-}
-
-function hasPermission(perm: string): boolean {
-  return permissions.value.includes(perm);
-}
-
-// 使用示例
-if (hasPermission('user:create')) {
-  // 显示创建按钮
-}
-```
-
----
-
-## Swagger UI（交互式测试）
-
-服务启动后可访问：
-
-| 服务 | Swagger UI |
-|------|-----------|
-| Gateway（推荐，走完整链路） | 暂无（纯代理，无文档） |
-| user-service（内部直连） | http://localhost:5601/docs |
-| auth-service（内部直连） | http://localhost:5602/docs |
-
-> 提示：直连 user-service / auth-service 测试时，需手动添加 `X-Internal-Token: change-me-in-local-env` 请求头。

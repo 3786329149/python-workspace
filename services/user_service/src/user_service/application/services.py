@@ -138,6 +138,34 @@ class UserApplicationService:
                 tenant_id=user.tenant_id
             )
 
+    async def update_user_roles(self, user_id: UUID, role_ids: list[UUID], actor_id: UUID | None = None) -> None:
+        """Replace all roles for a user."""
+        async with self.uow:
+            user = await self.uow.users.get_by_id(user_id)
+            if user is None:
+                raise UserNotFound("user not found")
+            
+            # Clear existing
+            await self.uow.roles.remove_all_from_user(user_id)
+            
+            # Add new
+            for role_id in role_ids:
+                await self.uow.roles.assign_role_to_user(user_id, role_id)
+            
+            await self.uow.commit()
+
+        await self._delete_permission_cache(user_id)
+        
+        if actor_id:
+            await self._add_audit_log(
+                user_id=actor_id,
+                action="update_user_roles",
+                resource="user",
+                resource_id=str(user_id),
+                details=f"Updated roles to: {role_ids}",
+                tenant_id=user.tenant_id
+            )
+
     async def create_role(self, command: CreateRoleCommand) -> Role:
         """Create a new role and return it."""
         from common.errors import AppError

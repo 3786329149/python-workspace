@@ -19,14 +19,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     engine = create_async_engine_factory(settings)
     redis_client = create_redis_client(settings)
 
+    import httpx
+    http_client = httpx.AsyncClient()
     app.state.db_engine = engine
     app.state.db_session_factory = create_session_factory(engine)
     app.state.redis = redis_client
+    app.state.http_client = http_client
 
     try:
         logger.info("user service started")
         yield
     finally:
+        await http_client.aclose()
         await redis_client.aclose()
         await engine.dispose()
         logger.info("user service stopped")

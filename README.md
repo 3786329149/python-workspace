@@ -66,6 +66,8 @@ uv run pytest tests/test_departments.py   # Department tests
 | POST | `/api/v1/depts` | Create department (auto computes ancestors) |
 | PATCH | `/api/v1/depts/{dept_id}` | Rename / reorder department |
 | DELETE | `/api/v1/depts/{dept_id}` | Soft-delete department (409 if has children) |
+| GET | `/api/v1/tenants` | Platform Admin | List all tenants |
+| POST | `/api/v1/tenants` | Platform Admin | Create tenant (auto-init) |
 
 ## Environment Configuration
 

@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from user_service.domain.models import AuditLog, DataScope, Department, Menu, Role, User, UserStatus, normalize_email
+from user_service.domain.models import AuditLog, DataScope, Department, Menu, Role, User, UserStatus, Tenant, TenantStatus, normalize_email
 from user_service.infrastructure.db.context import get_current_tenant
 from user_service.infrastructure.db.models import (
     AuditLogRecord,
@@ -12,6 +12,7 @@ from user_service.infrastructure.db.models import (
 
     RoleRecord,
     UserRecord,
+    TenantRecord,
     role_menus,
     user_roles,
 )
@@ -72,7 +73,6 @@ class SqlAlchemyUserRepository:
             stmt = stmt.where(UserRecord.tenant_id == target_tenant)
 
         if data_scope == DataScope.DEPT:
-...
             if current_dept_id:
                 stmt = stmt.where(UserRecord.dept_id == current_dept_id)
             else:
@@ -149,6 +149,11 @@ class SqlAlchemyRoleRepository:
     async def remove_role_from_user(self, user_id: UUID, role_id: UUID) -> None:
         from sqlalchemy import delete
         stmt = delete(user_roles).where(user_roles.c.user_id == user_id, user_roles.c.role_id == role_id)
+        await self.session.execute(stmt)
+
+    async def remove_all_from_user(self, user_id: UUID) -> None:
+        from sqlalchemy import delete
+        stmt = delete(user_roles).where(user_roles.c.user_id == user_id)
         await self.session.execute(stmt)
 
     async def delete(self, role_id: UUID) -> None:
@@ -381,4 +386,46 @@ class SqlAlchemyAuditLogRepository:
             created_at=r.created_at,
             updated_at=r.updated_at,
         )
+
+
+class SqlAlchemyTenantRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def add(self, tenant: Tenant) -> None:
+        self.session.add(TenantRecord.from_domain(tenant))
+
+    async def save(self, tenant: Tenant) -> None:
+        record = await self.session.get(TenantRecord, tenant.id)
+        if record is None:
+            await self.add(tenant)
+            return
+        record.apply(tenant)
+
+    async def get_by_id(self, tenant_id: UUID) -> Tenant | None:
+        record = await self.session.get(TenantRecord, tenant_id)
+        if record is None or record.deleted_at is not None:
+            return None
+        return record.to_domain()
+
+    async def get_by_key(self, tenant_key: str) -> Tenant | None:
+        stmt = select(TenantRecord).where(
+            TenantRecord.tenant_key == tenant_key,
+            TenantRecord.deleted_at.is_(None)
+        )
+        result = await self.session.execute(stmt)
+        record = result.scalar_one_or_none()
+        return record.to_domain() if record else None
+
+    async def get_all(self) -> list[Tenant]:
+        stmt = select(TenantRecord).where(TenantRecord.deleted_at.is_(None)).order_by(TenantRecord.created_at.desc())
+        result = await self.session.execute(stmt)
+        return [r.to_domain() for r in result.scalars().all()]
+
+    async def delete(self, tenant_id: UUID) -> None:
+        from datetime import UTC, datetime
+        record = await self.session.get(TenantRecord, tenant_id)
+        if record is not None:
+            record.deleted_at = datetime.now(UTC)
+            record.status = TenantStatus.DELETED.value
 

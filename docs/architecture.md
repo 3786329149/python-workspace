@@ -59,17 +59,17 @@
 ## 数据库设计（user_db）
 
 ```
-departments                roles               menus
-──────────────            ──────────────       ──────────────
-id (PK)                   id (PK)              id (PK)
-tenant_id                 tenant_id            parent_id → menus.id
-parent_id → depts.id      name                 menu_name
-name                      role_key (unique     menu_type  M/C/F
-ancestors  (","分隔)       within tenant)       path
-order_num                 data_scope           perms  (如 user:list)
-created_at                created_at           icon / order_num
-updated_at                updated_at           created_at / updated_at
-deleted_at (软删)          deleted_at (软删)    deleted_at (软删)
+tenants                    departments                roles
+──────────────            ──────────────            ──────────────
+id (PK)                   id (PK)                   id (PK)
+name                      tenant_id → tenants.id    tenant_id → tenants.id
+tenant_key (unique)       parent_id → depts.id      name
+status                    name                      role_key
+contact_person            ancestors                 data_scope
+contact_phone             order_num                 created_at
+config (JSON)             created_at                updated_at
+created_at / updated_at   updated_at                deleted_at
+                          deleted_at
 
 users                     user_roles           role_menus
 ──────────────            ────────────         ────────────

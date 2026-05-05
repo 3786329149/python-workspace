@@ -1,9 +1,17 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import IntEnum, StrEnum
+from uuid import UUID, uuid4
 
 
 class UserStatus(StrEnum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    PENDING = "pending"
+    DELETED = "deleted"
+
+
+class TenantStatus(StrEnum):
     ACTIVE = "active"
     DISABLED = "disabled"
     PENDING = "pending"
@@ -275,3 +283,47 @@ class Menu:
             created_at=now,
             updated_at=now,
         )
+
+
+@dataclass(slots=True)
+class Tenant:
+    id: UUID
+    name: str
+    tenant_key: str
+    status: TenantStatus
+    contact_person: str | None = None
+    contact_phone: str | None = None
+    config: dict = field(default_factory=dict)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    deleted_at: datetime | None = None
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        tenant_key: str,
+        contact_person: str | None = None,
+        contact_phone: str | None = None,
+        config: dict | None = None,
+    ) -> "Tenant":
+        now = datetime.now(UTC)
+        return cls(
+            id=uuid4(),
+            name=name,
+            tenant_key=tenant_key,
+            status=TenantStatus.ACTIVE,
+            contact_person=contact_person,
+            contact_phone=contact_phone,
+            config=config or {},
+            created_at=now,
+            updated_at=now,
+        )
+
+    def disable(self) -> None:
+        self.status = TenantStatus.DISABLED
+        self.updated_at = datetime.now(UTC)
+
+    def enable(self) -> None:
+        self.status = TenantStatus.ACTIVE
+        self.updated_at = datetime.now(UTC)

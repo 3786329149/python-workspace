@@ -27,7 +27,7 @@ class AuthServiceConfig(
     INTERNAL_API_TOKEN: str = ""
     JWT_SECRET_KEY: str = "dev-secret-change-me-with-at-least-32-bytes"
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     LOGIN_FAILURE_WINDOW_SECONDS: int = 900
     LOGIN_FAILURE_MAX_BY_USERNAME: int = 5

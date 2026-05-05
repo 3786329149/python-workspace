@@ -8,6 +8,7 @@ from user_service.infrastructure.db.repositories import (
     SqlAlchemyDepartmentRepository,
     SqlAlchemyMenuRepository,
     SqlAlchemyRoleRepository,
+    SqlAlchemyTenantRepository,
     SqlAlchemyUserRepository,
 )
 
@@ -21,6 +22,7 @@ class SqlAlchemyUnitOfWork:
         self.menus: SqlAlchemyMenuRepository
         self.departments: SqlAlchemyDepartmentRepository
         self.audit_logs: SqlAlchemyAuditLogRepository
+        self.tenants: SqlAlchemyTenantRepository
 
     async def __aenter__(self) -> Self:
         self.session = self.session_factory()
@@ -29,6 +31,7 @@ class SqlAlchemyUnitOfWork:
         self.menus = SqlAlchemyMenuRepository(self.session)
         self.departments = SqlAlchemyDepartmentRepository(self.session)
         self.audit_logs = SqlAlchemyAuditLogRepository(self.session)
+        self.tenants = SqlAlchemyTenantRepository(self.session)
         return self
 
     async def __aexit__(

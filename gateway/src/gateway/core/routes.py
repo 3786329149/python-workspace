@@ -56,3 +56,13 @@ DEPT_ROUTE = ServiceRoute(
     requires_internal_token=True,
     requires_permission="dept:list",
 )
+
+
+TENANT_ROUTE = ServiceRoute(
+    name="user-service",
+    base_url=settings.USER_SERVICE_URL,
+    upstream_prefix="/api/v1/tenants",
+    requires_internal_token=True,
+    # tenant:list or similar could be added here later, 
+    # but user-service already enforces require_platform_admin.
+)

@@ -86,3 +86,36 @@ class UserResponse(BaseModel):
             updated_at=user.updated_at,
             deleted_at=user.deleted_at,
         )
+
+
+class TenantCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    tenant_key: str = Field(..., min_length=2, max_length=50)
+    contact_person: str | None = Field(None, max_length=64)
+    contact_phone: str | None = Field(None, max_length=32)
+    config: dict | None = None
+    admin_username: str | None = Field(None, min_length=3, max_length=64)
+    admin_email: str | None = None
+    admin_password: str = Field("Pass1234", min_length=8)
+
+
+class TenantUpdateRequest(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    status: str | None = None
+    contact_person: str | None = Field(None, max_length=64)
+    contact_phone: str | None = Field(None, max_length=32)
+    config: dict | None = None
+
+
+class TenantResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    tenant_key: str
+    status: str
+    contact_person: str | None
+    contact_phone: str | None
+    config: dict
+    created_at: datetime
+    updated_at: datetime
